@@ -1,0 +1,898 @@
+#' Linearize latitude-longitude GPS points on a provided route shape
+#'
+#' @description
+#' This functions projects raw AVL data, as GPS latitude-longitude points, onto
+#' a provided route geometry, returning each point's distance of that point
+#' along the shape its the beginning terminal.
+#'
+#' @inheritParams project_onto_route
+#' @param avl_df A dataframe of raw AVL data. Must include at least `longitude`
+#' and `latitude` columns. See `validate_tides()`.
+#' @param clip_buffer Optional. The distance, in units of the chosen spatial
+#' projection, to clip the GPS points. Only points within this distance of the
+#' `shape_geometry` will be kept. Default is `NULL`, where no clip will be
+#' applied.
+#' @param shape_geometry The SF object to project onto. Must be only one shape.
+#' See `get_shape_geometry()`.
+#' @return The input `avl_df` with `latitude` and `longitude` columns replaced
+#' by a `distance` column, in the units of the spatial projection used (e.g.,
+#' meters if using WGS UTM).
+#' @export
+#' @examples
+#' # Set my parameters
+#' my_buffer <- 50 # meters
+#' my_crs <- 32611
+#'
+#' # Get input data
+#' lineE_avl <- new_transittraj_data("lineE_avl")
+#' lineE_shape <- new_transittraj_data("get_shape_geometry")
+#' dim(lineE_avl)
+#'
+#' # Run function
+#' lineE_dists <- get_linear_distances(avl_df = lineE_avl,
+#'                                     shape_geometry = lineE_shape,
+#'                                     clip_buffer = my_buffer,
+#'                                     project_crs = my_crs)
+#' dim(lineE_dists)
+#' head(lineE_dists)
+get_linear_distances <- function(avl_df, shape_geometry, clip_buffer = NULL,
+                                 original_crs = 4326, project_crs = 4326) {
+
+  # --- Validate ---
+  # AVL
+  needed_fields <- c("longitude", "latitude")
+  validate_input_to_tides(needed_fields, avl_df)
+  # Shape geometry
+  validate_shape_geometry(shape_geometry = shape_geometry,
+                          max_length = 1,
+                          require_shape_id = FALSE,
+                          match_crs = project_crs)
+
+  # --- Spatial ---
+  # Get SFC -- needed for some spatial calculations
+  shape_geometry_sfc <- sf::st_geometry(shape_geometry)
+
+  # Convert DF to SF
+  avl_sf <- avl_df %>%
+    sf::st_as_sf(coords = c("longitude", "latitude")) %>%
+    sf::st_set_crs(original_crs) %>%
+    sf::st_transform(crs = project_crs)
+
+  # Clip to near line
+  if (!is.null(clip_buffer)) {
+    route_buffer <- sf::st_buffer(shape_geometry_sfc, clip_buffer)
+    # Intersection will warn of non-constant attributes -- that's ok here
+    avl_clipped <- suppressWarnings(
+      sf::st_intersection(x = avl_sf, y = route_buffer))
+
+    # Convert SF to SFC
+    avl_sfc <- sf::st_geometry(avl_clipped)
+
+    # Save DF for later
+    dist_df <- sf::st_drop_geometry(avl_clipped)
+
+  } else {
+    # Convert SF to SFC
+    avl_sfc <- sf::st_geometry(avl_sf)
+
+    # Save DF for later
+    dist_df <- sf::st_drop_geometry(avl_sf)
+  }
+
+  # Project points onto line
+  shape_len <- sf::st_length(shape_geometry)
+  avl_dist_norm <- sf::st_line_project(line = shape_geometry_sfc, point = avl_sfc,
+                                       normalized = TRUE)
+  avl_dist = avl_dist_norm * shape_len
+
+  # Clean AVL distances & merge to DF
+  units(avl_dist) <- NULL
+  dist_df <- dist_df %>%
+    dplyr::mutate(distance = avl_dist)
+
+  return(dist_df)
+}
+
+#' Remove trips with multiple operators or vehicles assigned to the
+#' same trip ID
+#'
+#' @description
+#' In some AVL systems, multiple vehicles or operators may be logged to the same
+#' trip ID at the same time. This may be acceptable in some scenarios (e.g., a
+#' vehicle/operator tradeoff mid-trip). Other times, it may be an error, with
+#' these distinct (trip, vehicle, operator) truples running simulataneously.
+#' This function identifies both scenarios, and gives the option to
+#' remove either.
+#'
+#' @param distance_df A dataframe of linearized AVL data. Must include
+#' `event_timestamp`, `trip_id_performed`, and `vehicle_id`. Optionally, may
+#' include `operator_id`.
+#' @param check_operator Optional. A boolean, should the function check for
+#' overlaps of multiple `operator_id`s? Default is `FALSE`.
+#' @param remove_single_observations Optional. A boolean, should subtrips with
+#'  only one observation be removed? Default is `TRUE`.
+#' @param remove_non_overlapping Optional. A boolean, should trips with multiple
+#' vehicles or operators that do not overlap be removed? Default is `FALSE`.
+#' @param return_removals Optional. A boolean, should the function return a
+#' dataframe of trips removed and why? Default is `FALSE`.
+#' @return The input distance_df, with violating trips removed. If
+#' `return_removals = TRUE`, a dataframe with trip IDs removed and why.
+#' @export
+#' @examples
+#' # Get input data
+#' lineE_dists <- new_transittraj_data("get_linear_distances")
+#' dim(lineE_dists)
+#'
+#' # Run function
+#' lineE_no_overlaps <- clean_overlapping_subtrips(distance_df = lineE_dists)
+#' dim(lineE_no_overlaps)
+#' head(lineE_no_overlaps)
+clean_overlapping_subtrips <- function(distance_df, check_operator = FALSE,
+                                       remove_single_observations = TRUE,
+                                       remove_non_overlapping = FALSE,
+                                       return_removals = FALSE) {
+  # --- Validate AVL ---
+  if (check_operator) {
+    needed_fields <- c("operator_id", "event_timestamp", "trip_id_performed",
+                       "vehicle_id")
+  } else {
+    needed_fields <- c("event_timestamp", "trip_id_performed",
+                       "vehicle_id")
+  }
+  validate_input_to_tides(needed_fields, distance_df)
+
+  # If all trips with multiple operators or vehicles should be removed
+  if (remove_non_overlapping) {
+    if (check_operator) {
+      trip_counts <- distance_df %>%
+        dplyr::group_by(trip_id_performed) %>%
+        dplyr::summarise(n_veh = length(unique(vehicle_id)),
+                         n_oper = length(unique(operator_id))) %>%
+        dplyr::mutate(remove_trip = ((n_veh > 1) | (n_oper > 1))) %>%
+        dplyr::filter(remove_trip)
+    } else {
+      trip_counts <- distance_df %>%
+        dplyr::group_by(trip_id_performed) %>%
+        dplyr::summarise(n_veh = length(unique(vehicle_id))) %>%
+        dplyr::mutate(remove_trip = (n_veh > 1)) %>%
+        dplyr::filter(remove_trip)
+    }
+    if (return_removals) {
+      # If removed trips to be returned
+      return(trip_counts %>% dplyr::mutate(reason = "multiple operators or vehicles",
+                                           action = "remove entire trip"))
+    } else {
+      # Otherwise, clean the input DF
+      clean_df <- distance_df %>%
+        dplyr::filter(!(trip_id_performed %in% trip_counts$trip_id_performed))
+      return(clean_df)
+    }
+  }
+
+  # Otherwise, identify which trips have overlapping segments
+  # Calculate time ranges of trips
+  if (check_operator) {
+    trip_ranges <- distance_df %>%
+      dplyr::mutate(event_timestamp = as.numeric(event_timestamp)) %>%
+      dplyr::group_by(trip_id_performed, vehicle_id, operator_id) %>%
+      dplyr::summarise(t_start = min(event_timestamp),
+                       t_end = max(event_timestamp),
+                       n_obs = dplyr::n(),
+                       .groups = "keep") %>%
+      dplyr::mutate(subtrip = paste(trip_id_performed, operator_id, vehicle_id, sep = "-")) %>%
+      dplyr::ungroup()
+  } else {
+    trip_ranges <- distance_df %>%
+      dplyr::mutate(event_timestamp = as.numeric(event_timestamp)) %>%
+      dplyr::group_by(trip_id_performed, vehicle_id) %>%
+      dplyr::summarise(t_start = min(event_timestamp),
+                       t_end = max(event_timestamp),
+                       n_obs = dplyr::n(),
+                       .groups = "keep") %>%
+      dplyr::mutate(subtrip = paste(trip_id_performed, vehicle_id, sep = "-")) %>%
+      dplyr::ungroup()
+  }
+
+  # Find overlapping intervals
+  trip_intervals <- trip_ranges %>%
+    dplyr::filter(n_obs > 1) %>%
+    dplyr::mutate(t_interval = ivs::iv(t_start, t_end)) %>%
+    dplyr::group_by(trip_id_performed) %>%
+    dplyr::mutate(time_range = ivs::iv_identify_group(t_interval)) %>%
+    dplyr::ungroup()
+
+  # Get trips to remove
+  # Trips with overlapping ranges
+  trips_with_overlaps <- trip_intervals %>%
+    dplyr::group_by(trip_id_performed, time_range) %>%
+    dplyr::summarise(n_subtrips_in_range = dplyr::n(),
+                     .groups = "keep") %>%
+    dplyr::filter(n_subtrips_in_range > 1)
+
+  if (remove_single_observations) {
+    # If removing subtrips with a single observation
+    subtrips_single <- trip_ranges %>%
+      dplyr::filter(n_obs == 1) %>%
+      dplyr::select(trip_id_performed, subtrip, n_obs)
+
+    if (return_removals) {
+      # If returning removals
+      removed_trips <- dplyr::bind_rows(
+        subtrips_single %>% dplyr::mutate(reason = "single observation",
+                                          action = "remove observation"),
+        trips_with_overlaps %>% dplyr::mutate(reason = "overlapping subtrips",
+                                              action = "remove entire trip")
+      )
+      return(removed_trips)
+    } else {
+      # Otherwise, clean the DF
+      if (check_operator) {
+        clean_df <- distance_df %>%
+          dplyr::mutate(subtrip = paste(trip_id_performed, operator_id, vehicle_id, sep = "-")) %>%
+          dplyr::filter(!(subtrip %in% subtrips_single$subtrip)) %>%
+          dplyr::filter(!(trip_id_performed %in% trips_with_overlaps$trip_id_performed)) %>%
+          dplyr::select(-subtrip)
+      } else {
+        clean_df <- distance_df %>%
+          dplyr::mutate(subtrip = paste(trip_id_performed, vehicle_id, sep = "-")) %>%
+          dplyr::filter(!(subtrip %in% subtrips_single$subtrip)) %>%
+          dplyr::filter(!(trip_id_performed %in% trips_with_overlaps$trip_id_performed)) %>%
+          dplyr::select(-subtrip)
+      }
+      return(clean_df)
+    }
+  } else {
+    # Otherwise, remove only those with overlapping ranges
+    if (return_removals) {
+      # If return removals
+      return(trips_with_overlaps %>% dplyr::mutate(reason = "overlapping subtrips",
+                                                   action = "remove entire trip"))
+    } else {
+      # Otherwise, claen the DF
+      clean_df <- distance_df %>%
+        dplyr::filter(!(trip_id_performed %in% trips_with_overlaps$trip_id_performed))
+      return(clean_df)
+    }
+  }
+}
+
+#' Apply median filters to detect large jumps (i.e., outliers) in
+#' trajectories.
+#'
+#' @description
+#' Noise in GPS trajectories can manifest itself as one or more points lying far
+#' away from points recorded at a similar time. This function identifies these
+#' points using median filters. By default, outliers are removed. See `Details`
+#' for a discussion of removal methodologies.
+#'
+#' @details
+#' There are many different types of median filters. In general, these filters
+#' create a sliding window around each point (here, controlled by
+#' `neighborhood_width`) and treats a point based on its deviation from the
+#' median of that window. This function supports two main ways of classifying
+#' outliers based on their deviation:
+#'
+#' - Raw deviation: `min_median_deviation` and `max_median_deviation` set
+#' bounds for an acceptable deviation between a point and the median of the
+#' window around it, in units of the input `distance` column.
+#'
+#' - Hampel filter: Uses the median absolute deviation (MAD), the median of
+#' deviations from the median. With a conversion factor (`s = 1.48`), this is
+#' analogous to a standard error. The `t_cutoff`, then, is analogous to an
+#' acceptable window of `t` values.
+#'
+#' Both of these can be used at the same time. If multiple criteria are set,
+#' a point will be removed if it violates any criterion.
+#'
+#' A Hampel filter is generally considered highly robust, and is the recommended
+#' approach. There are, however, two main limitations to be aware of:
+#'
+#' - It can struggle at the beginnings and ends of trips, before a complete
+#' window can be formed. Use `evaluate_tails` to skip these.
+#'
+#' - When more than hald of a window has the same value, the MAD is 0 and an
+#' observation is guaranteed to be flagged as an outlier. This is known as an
+#' "implosion". As we expect noise in GPS data, even when a vehicle is standing
+#' still, this is unlikely. It can occur, however, near trip terminals, where
+#' many GPS points snap to the exact same point on the route alignment. Use
+#' `evaluate_implosions` to identify and skip points in an implosion.
+#'
+#' Once a point has been identified as an outlier, there are two possible
+#' treatments, controlled by `replace_outliers`:
+#'
+#' - Replacement with the window median. This is the most common approach to
+#' median filters, but is likely not appropriate for AVL data. Replacement
+#' may introduce non-monotonicities.
+#'
+#' - Removal of the point. This is a less common approach, but may be a more
+#' sensible for this application, given that interpolating curves will be fit
+#' later in the cleaning process.
+#'
+#' @references
+#' Pearson, Ronald K., Yrjö Neuvo, Jaakko Astola, and Moncef Gabbouj. 2016.
+#' “Generalized Hampel Filters.” EURASIP Journal on Advances in Signal
+#' Processing 2016 (1): 87. https://doi.org/10.1186/s13634-016-0383-6.
+#'
+#' @param distance_df A dataframe of linearized AVL data. Must include
+#' `trip_id_performed`, `event_timestamp`, and `distance`.
+#' @param neighborhood_width Optional. An integer representing the total sliding
+#' window width around each observation. Default is 7 (3 on either side).
+#' @param replace_outliers Optional. A boolean, should points identified as
+#' outliers be replaced by their window median? Default is `FALSE`.
+#' @param evaluate_tails Optional. A boolean, should the beginning and ending
+#' observations, before a complete window can be formed, be evaluated? Default
+#' is `FALSE`.
+#' @param evaluate_implosions Optional. A boolean, should points in implosion
+#' sequences be evaluated? "Implosions" occur when more than half of a window is
+#' constant. Default is `FALSE`.
+#' @param t_cutoff Optional. For Hampel filters, number of standardized MADs
+#' away to consider an outlier. Default is 3.
+#' @param min_median_deviation Optional. A numeric, the minimum allowed
+#' deviation of an observation from its window median, in units of distance.
+#' Default is `-Inf`.
+#' @param max_median_deviation Optional. A numeric, the maximum allowed
+#' deviation of an observation from its window median, in units of distance.
+#' Default is `Inf`.
+#' @param return_removals Optional. A boolean, should the function return
+#' a dataframe of points removed and why? Default is `FALSE`.
+#' @return The input `distance_df` with violating points removed. If
+#' `return_removals = TRUE`, a dataframe with observations removed and why.
+#' @export
+#' @examples
+#' # Set my parameters
+#' my_cutoff = 2.5
+#' my_neighborhood = 9
+#'
+#' # Get input data
+#' lineE_no_overlaps <- new_transittraj_data("clean_overlapping_subtrips")
+#' dim(lineE_no_overlaps)
+#'
+#' # Run function
+#' lineE_no_jumps <- clean_jumps(distance_df = lineE_no_overlaps,
+#'                               neighborhood_width = my_neighborhood,
+#'                               t_cutoff = my_cutoff)
+#' dim(lineE_no_jumps)
+#' head(lineE_no_jumps)
+clean_jumps <- function(distance_df, neighborhood_width = 7, t_cutoff = 3,
+                        min_median_deviation = -Inf, max_median_deviation = Inf,
+                        evaluate_tails = FALSE, evaluate_implosions = FALSE,
+                        replace_outliers = FALSE,
+                        return_removals = FALSE) {
+
+  # --- Validate AVL ---
+  needed_fields <- c("trip_id_performed", "event_timestamp", "distance",
+                     "location_ping_id")
+  validate_input_to_tides(needed_fields, distance_df)
+
+  num_obs <- floor(neighborhood_width / 2)
+  medians_df <- distance_df %>%
+    dplyr::arrange(trip_id_performed, event_timestamp) %>%
+    dplyr::group_by(trip_id_performed) %>%
+    dplyr::mutate(window_med = slider::slide_dbl(distance,
+                                                 stats::median,
+                                                 .before = num_obs, .after = num_obs),
+                  window_mad = slider::slide_dbl(distance,
+                                                 stats::mad,
+                                                 .before = num_obs, .after = num_obs),
+                  med_dist = distance - window_med,
+                  # Implosions will only be marked if evaluate_implosions is set to true; otherwise, they will be FALSE and treated as normal points
+                  is_implosion = (window_mad == 0) & (!evaluate_implosions),
+                  # Tails will only be marked if evaluate_tails is set to true; otherwise, they will be FALSE and treated as normal points
+                  is_tail = ((dplyr::row_number() <= num_obs) |
+                               (dplyr::row_number() >= dplyr::n() - num_obs)) &
+                    (!evaluate_tails),
+                  ignore_observation = is_implosion | is_tail,
+                  mad_ok = abs(med_dist) < (t_cutoff * window_mad),
+                  dev_ok = (med_dist >= min_median_deviation) & (med_dist <= max_median_deviation),
+                  all_ok = ((mad_ok & dev_ok) | ignore_observation)) %>%
+    dplyr::ungroup()
+
+  if (return_removals) {
+    removals_df <- medians_df %>%
+      dplyr::filter(!all_ok) %>%
+      dplyr::select(trip_id_performed, event_timestamp, distance, location_ping_id,
+                    window_med, window_mad, med_dist, is_implosion, is_tail, ignore_observation,
+                    mad_ok, dev_ok, all_ok)
+    return(removals_df)
+  } else {
+    if (replace_outliers) {
+      replaced_df <- medians_df %>%
+        dplyr::mutate(distance = dplyr::if_else(condition = all_ok,
+                                         true = distance,
+                                         false = window_med)) %>%
+        dplyr::select(-c(window_med, window_mad, med_dist,
+                         is_tail, is_implosion, ignore_observation,
+                         mad_ok, dev_ok, all_ok))
+      return(replaced_df)
+    } else {
+      filt_df <- medians_df %>%
+        dplyr::filter(all_ok) %>%
+        dplyr::select(-c(window_med, window_mad, med_dist,
+                         is_tail, is_implosion, ignore_observation,
+                         mad_ok, dev_ok, all_ok))
+      return(filt_df)
+    }
+  }
+}
+
+#' Filter out entire trips which do not meet distance or duration requirements
+#'
+#' This function identifies trips that do not meet some acceptable duration and
+#' distance traveled ranges, or that have large time or distance gaps in the
+#' middle. Violating trips are removed.
+#'
+#' @inheritParams clean_jumps
+#' @param max_trip_distance Optional. The maximum distance traveled over one
+#' trip, in units of input `distance`. Default is `Inf`.
+#' @param min_trip_distance Optional. The minimum distance traveled over one
+#' trip, in units of input `distance`. Default is `-Inf`.
+#' @param max_trip_duration Optional. The maximum duration
+#' of one trip, in seconds. Default is `Inf`.
+#' @param min_trip_duration Optional. The minimum duration
+#' of one trip, in seconds. Default is `-Inf`.
+#' @param max_distance_gap Optional. The maximum change in distance between two
+#' observations, in units of input `distance`. Default is `Inf`.
+#' @param max_time_gap Optional. The maximum time between two observations, in
+#' seconds. Default is `Inf`.
+#' @param return_removals Optional. A boolean, should the function return
+#' a dataframe of trips removed and why? Default is `FALSE`.
+#' @return The input `distance_df`, with violating trips removed.
+#' If `return_removals = TRUE`, a dataframe of trips removed and why.
+#' @export
+#' @examples
+#' # Set my parameters
+#' my_min_dist <- 1000
+#' my_max_gap <- 1000
+#'
+#' # Get input data
+#' lineE_no_jumps <- new_transittraj_data("clean_jumps")
+#' dim(lineE_no_jumps)
+#'
+#' # Run function
+#' lineE_clean_trips <- clean_incomplete_trips(distance_df = lineE_no_jumps,
+#'                                             min_trip_distance = my_min_dist,
+#'                                             max_distance_gap = my_max_gap)
+#' dim(lineE_clean_trips)
+#' head(lineE_clean_trips)
+clean_incomplete_trips <- function(distance_df,
+                                   max_trip_distance = Inf,
+                                   min_trip_distance = -Inf,
+                                   max_trip_duration = Inf,
+                                   min_trip_duration = -Inf,
+                                   max_distance_gap = Inf, max_time_gap = Inf,
+                                   return_removals = FALSE) {
+
+  # --- Validate AVL ---
+  needed_fields <- c("trip_id_performed", "event_timestamp", "distance",
+                     "location_ping_id")
+  validate_input_to_tides(needed_fields, distance_df)
+
+  # Generate necessary summary statistics
+  trip_dist_summ <- distance_df %>%
+    dplyr::arrange(trip_id_performed, event_timestamp) %>%
+    dplyr::group_by(trip_id_performed) %>%
+    dplyr::mutate(delta_dist = distance - dplyr::lag(distance),
+                  delta_dist = tidyr::replace_na(delta_dist, 0)) %>%
+    dplyr::mutate(delta_time = as.numeric(difftime(event_timestamp, dplyr::lag(event_timestamp), units = "secs")),
+                  delta_time = tidyr::replace_na(delta_time, 0)) %>%
+    dplyr::summarise(max_dist = max(distance),
+                     min_dist = min(distance),
+                     max_time = max(event_timestamp),
+                     min_time = min(event_timestamp),
+                     max_dist_gap = max(delta_dist),
+                     max_t_gap = max(delta_time),
+                     max_dist_gap_id = location_ping_id[which.max(delta_dist)],
+                     max_t_gap_id = location_ping_id[which.max(delta_time)]) %>%
+    dplyr::mutate(trip_distance = max_dist - min_dist,
+                  duration = as.numeric(difftime(max_time, min_time, units = "secs"))) %>%
+    dplyr::mutate(dist_ok = ((trip_distance >= min_trip_distance) &
+                               (trip_distance <= max_trip_distance)),
+                  dur_ok = ((duration >= min_trip_duration) &
+                              (duration <= max_trip_duration)),
+                  dist_gap_ok = (max_dist_gap <= max_distance_gap),
+                  t_gap_ok = (max_t_gap <= max_time_gap),
+                  all_ok = (dist_ok & dur_ok & dist_gap_ok & t_gap_ok))
+
+  # If to return removed trips
+  if (return_removals) {
+    removals_df <- trip_dist_summ %>%
+      dplyr::filter(!all_ok)
+    return(removals_df)
+  } else {
+    # Otherwise, pull trips satisfying conditions
+    keep_trips <- trip_dist_summ %>%
+      dplyr::filter(all_ok) %>%
+      dplyr::pull(trip_id_performed)
+
+    # Filter input DF
+    filt_df <- distance_df %>%
+      dplyr::filter(trip_id_performed %in% keep_trips)
+
+    return(filt_df)
+  }
+}
+
+#' Remove observations occurring before a trip's minimum distance, or after a
+#' trip's maximum distance
+#'
+#' Sometimes AVL pings can be recorded under a trip ID while a vehicle is
+#' still traveling in the opposite direction. Conversely, a trip may continue
+#' recording as it begins traversing the opposite direction. This function
+#' attempts to remove these observations by identifying each trip's minimum
+#' (beginning) and maximum (ending) distance, then filtering to only
+#' observations between these points. For both ends, the first
+#' occurrence of the beginning/ending value is used.
+#'
+#' @inheritParams clean_jumps
+#' @param trim_type Optional. A string, indicating whether the beginning of
+#' trips, end of trips, or both beginning and end of trips should be trimmed.
+#' Must be one of `"beginning"`, `"end"`, or `"both"`. Default is `"both"`.
+#' @return The input `distance_df` with violating points removed. If
+#' `return_removals = TRUE`, a dataframe with observations removed and why.
+#' @export
+#' @examples
+#' # Get input data
+#' lineE_clean_trips <- new_transittraj_data("clean_incomplete_trips")
+#' dim(lineE_clean_trips)
+#'
+#' # Run function
+#' lineE_trimmed <- trim_trips(distance_df = lineE_clean_trips)
+#' dim(lineE_trimmed)
+#' head(lineE_trimmed)
+trim_trips <- function(distance_df, trim_type = "both",
+                       return_removals = FALSE) {
+
+  # --- Validate AVL ---
+  needed_fields <- c("trip_id_performed", "event_timestamp", "distance",
+                     "location_ping_id")
+  validate_input_to_tides(needed_fields, distance_df)
+
+  # Get minimum & maximum distance index of each trip
+  index_df <- distance_df %>%
+    dplyr::arrange(trip_id_performed, event_timestamp) %>%
+    dplyr::group_by(trip_id_performed) %>%
+    dplyr::mutate(min_dist_index = which.min(distance),
+                  max_dist_index = which.max(distance),
+                  row_index = dplyr::row_number(),
+                  before_min = row_index < min_dist_index,
+                  after_max = row_index > max_dist_index,
+                  obs_ok = (!before_min) & (!after_max),
+                  remove_trip = (max_dist_index <= min_dist_index)) %>% # Index of trip's min distance
+    dplyr::ungroup()
+
+  if (sum(index_df$remove_trip) > 0) {
+    remove_trips <- index_df %>%
+      dplyr::filter(remove_trip) %>%
+      dplyr::distinct(trip_id_performed) %>%
+      dplyr::pull(trip_id_performed)
+
+    rlang::warn(message = paste("Trips found with maximum at or before minimum point -- potential wrong direction.\nRemoving the following: ",
+                                toString(remove_trips), sep = ""),
+                class = "warn_trimtrips_dir")
+
+    index_df <- index_df %>%
+      dplyr::filter(!(trip_id_performed %in% remove_trips))
+  }
+
+  if (trim_type == "both") { # If trimming both ends
+    if (return_removals) { # If returning removals, find not OK
+      removals_df <- index_df %>%
+        dplyr::filter(!obs_ok) %>%
+        dplyr::select(trip_id_performed, event_timestamp, distance,
+                      min_dist_index, max_dist_index, row_index,
+                      before_min, after_max, obs_ok,
+                      location_ping_id)
+      return(removals_df)
+    } else { # Otherwise, filter to all OK
+      trim_df <- index_df %>%
+        dplyr::filter(obs_ok) %>%
+        dplyr::select(-c(min_dist_index, max_dist_index, row_index,
+                         before_min, after_max, obs_ok, remove_trip))
+      return(trim_df)
+    }
+  } else if (trim_type == "beginning") { # If trimming only beginning
+    if (return_removals) { # If returning removals, find obs before min index
+      removals_df <- index_df %>%
+        dplyr::filter(before_min) %>%
+        dplyr::select(trip_id_performed, event_timestamp, distance,
+                      min_dist_index, max_dist_index, row_index,
+                      before_min, location_ping_id)
+      return(removals_df)
+    } else { # Otherise, filter to obs on/after min index
+      trim_df <- index_df %>%
+        dplyr::filter(!before_min) %>%
+        dplyr::select(-c(min_dist_index, max_dist_index, row_index,
+                         before_min, after_max, obs_ok, remove_trip))
+      return(trim_df)
+    }
+  } else if (trim_type == "end") { # If trimming only end
+    if (return_removals) { # If returning removals, find obs after max index
+      removals_df <- index_df %>%
+        dplyr::filter(after_max) %>%
+        dplyr::select(trip_id_performed, event_timestamp, distance,
+                      min_dist_index, max_dist_index, row_index,
+                      after_max, location_ping_id)
+      return(removals_df)
+    } else { # Otherwise, filter to obs on/before max index
+      trim_df <- index_df %>%
+        dplyr::filter(!after_max) %>%
+        dplyr::select(-c(min_dist_index, max_dist_index, row_index,
+                         before_min, after_max, obs_ok, remove_trip))
+      return(trim_df)
+    }
+  } else { # If unknown entry, throw error
+    rlang::abort(message = "Unknown trim type. Please enter: \"beginning\", \"end\", or \"both\".",
+                 class = "error_trimtrips_type")
+  }
+}
+
+#' Correct distance observations, and optionally speeds, to be weakly or
+#' strictly monotonic
+#'
+#' @description
+#' Due to error in GPS position and speed measurements, raw AVL data is often
+#' not monotonic, creating difficulties for advanced analyses. This function
+#' presents a variety of options to correct data, resulting in distance values,
+#' and optionally speeds, which form a strictly or weakly monotonic curve. See
+#' `Details` for more information.
+#'
+#' @details
+#' There are two primary types of monotonicity:
+#'
+#' - Weak monotonicity: The trajectory is increasing or constant. To make points
+#' weakly monotonic, this function replaces each point with the cumulative
+#' maximum `distance` value at that point in the trip. This means that
+#' backtracking points will be "pulled up."
+#'
+#' - Strict monotonicity: The trajectory is increasing only, never constant. To
+#' make points strictly monotonic, we first begin with a weakly monotonic
+#' trajectory. Then, constant portions (adjacent points with equal `distance`
+#' values) are identified, and `add_distance_error` is added to each point. The
+#' function identifies and prevents "overshoots," ensuring that an adjusted
+#' point never moves past an observed point sometime after it. Effectively,
+#' this gives flat portions of the trajectory a slight upward slope.
+#'
+#' Weak monotonicity most accurately describes real transit vehicle trajectories:
+#' we expect the vehicle to either move forwards, or stand still at a stop.
+#' However, strict monotonicity is a convenient mathematical property that
+#' allows us to find the inverse trajectory (i.e., retrieve time as a
+#' function of distance). Choose between these two options by setting
+#' `add_distance_error`. If `add_distance_error = 0` (the default), a weakly
+#' monotonic trajectory is returned; otherwise, the trajectory will be
+#' strictly monotonic.
+#'
+#' In addition to distance corrections, some applications (e.g., fitting a
+#' velocity-informed interpolation spline) require speeds to satisfy certain
+#' monotonic conditions. If `correct_speed = TRUE`, the following corrections
+#' will be made:
+#'
+#' - For strict monotonicity (`add_distance_error > 0`), speeds must be
+#' non-zero. At each point where the recorded `speed == 0`, the speed will be
+#' replaced by `add_distance_error` divided by the time between that point and
+#' the previous point.
+#'
+#' - For both strict and weak monotonicity, speeds will be adjusted to meet the
+#' Fritsch-Carlson (1980) constraints. Often, only a handful of input
+#' `speed` values will be adjusted.
+#'
+#' If recorded speed values are not present, set `correct_speed = FALSE`.
+#' However, if you are interested in later fitting a velocity-informed
+#' interpolating curve, such as Fritsch-Carlson's piecewise cubic polynomials,
+#' consider setting `correct_speed = TRUE` to guarantee a monotonic
+#' interpolating curve.
+#'
+#' After using this function to perform corrections, use
+#' `validate_monotonicity()` to check if weak, strict, and Fritsch-Carlson
+#' speed conditions are met.
+#'
+#' @references
+#' Fritsch, F. N., and R. E. Carlson. 1980. “Monotone Piecewise Cubic
+#' Interpolation.” SIAM Journal on Numerical Analysis.
+#' https://doi.org/10.1137/0717021.
+#'
+#' Robbennolt, Jake, Sirajum Munira, and Stephen D. Boyles. 2026.
+#' “A Comparative Study of Spline-Based Trajectory Reconstruction Methods
+#' Across Varying Automatic Vehicle Location Data Densities.” Paper
+#' presented at 2026 Transportation Research Board Annual Meeting, January 11.
+#' http://arxiv.org/abs/2509.00119.
+#'
+#' @param distance_df A dataframe of linearized AVL data. Must include
+#' `trip_id_performed`, `event_timestamp`, and `distance`. If
+#' `correct_speed = TRUE`, must also include `speed`.
+#' @param correct_speed Optional. A boolean, should speeds be corrected to meet
+#' adjusted distances and Fritsch-Carlson conditions? Default is `FALSE`.
+#' @param add_distance_error Optional. If non-zero, each "flat" observation will
+#' be adjusted by this amount forwards, in units of input `distance`. Default is
+#' `0`.
+#' @param return_changes Optional. Should a dataframe of each observation
+#' changed be returned? Default is `FALSE`.
+#' @return The input `distance_df` with distances and speeds adjusted. If
+#' `return_changes = TRUE`, a dataframe with observations changed.
+#' @export
+#' @examples
+#' # Set my parameters
+#' my_dist_err = 0.001
+#'
+#' # Get input data
+#' lineE_trimmed <- new_transittraj_data("trim_trips")
+#'
+#' # Run function
+#' lineE_mono <- make_monotonic(distance_df = lineE_trimmed,
+#'                            add_distance_error = my_dist_err,
+#'                            correct_speed = TRUE)
+#' head(lineE_mono)
+make_monotonic <- function(distance_df,
+                           correct_speed = FALSE, add_distance_error = 0,
+                           return_changes = FALSE) {
+
+  # --- Validate AVL ---
+  if (correct_speed) {
+    needed_fields <- c("trip_id_performed", "event_timestamp", "distance",
+                       "speed", "location_ping_id")
+  } else {
+    needed_fields <- c("trip_id_performed", "event_timestamp", "distance",
+                       "location_ping_id")
+  }
+  validate_input_to_tides(needed_fields, distance_df)
+
+  # --- Validate input distance error ---
+  if (!is.numeric(add_distance_error)) {
+    rlang::abort(message = "Please input numeric add_distance_error.",
+                 class = "error_mono_dist_error")
+  }
+
+  # --- Weak montonicity ---
+  mon_df <- distance_df %>%
+    dplyr::arrange(trip_id_performed, event_timestamp) %>%
+    dplyr::group_by(trip_id_performed) %>%
+    dplyr::mutate(monotonic_dist = cummax(distance),
+                  correction_applied = distance < monotonic_dist) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(-distance) %>%
+    dplyr::rename(distance = monotonic_dist)
+
+  # --- Strict monotonicity ---
+  if(add_distance_error != 0) {
+
+    mon_df <- mon_df %>%
+      # Order data
+      dplyr::arrange(trip_id_performed, event_timestamp) %>%
+      # Identify groupings of constant run lengths
+      dplyr::mutate(constant_id = data.table::rleid(distance)) %>%
+      dplyr::group_by(constant_id) %>%
+      # Get total run length, and index of each row within length
+      dplyr::mutate(run_length = dplyr::n(),
+             row_index = dplyr::row_number()) %>%
+      dplyr::group_by(trip_id_performed) %>%
+      dplyr::mutate(
+        # Calculate initial, naiive adjustment up
+        initial_adjustment = distance + (add_distance_error * (row_index - 1)),
+        # Identify rows where initial adjustment violates monotonicity
+        # Establish a new target maximum, instead of using add_distance_error
+        target_dist = dplyr::if_else(condition = ((row_index != 1) & (dplyr::lead(row_index) == 1)),
+                              true = dplyr::if_else(condition = (initial_adjustment >= dplyr::lead(distance)),
+                                             true = distance + ((dplyr::lead(distance) - distance) * ((row_index - 1) / run_length)),
+                                             false = 0),
+                              false = 0),
+        target_dist = tidyr::replace_na(target_dist, 0)) %>%
+      dplyr::group_by(constant_id) %>%
+      dplyr::mutate(
+        # Final max in that group
+        target_max = max(target_dist),
+        # If a new target max exists, above 0, interpolate (by row) to it linearly
+        # Otherwise, keep at initial adjustment
+        final_distance = dplyr::if_else(condition = (target_max > 0),
+                                        true = (distance + (target_max - distance) * ((row_index - 1) / run_length)),
+                                        false = initial_adjustment),
+        # Check if a new correction has been applied
+        correction_applied = dplyr::if_else(condition = correction_applied,
+                                            true = correction_applied,
+                                            false = (final_distance != distance))) %>%
+      dplyr::ungroup() %>%
+      # Remove & rename columns
+      dplyr::select(-c(distance, constant_id, run_length, row_index,
+                       initial_adjustment, target_dist, target_max)) %>%
+      dplyr::rename(distance = final_distance)
+
+    if (correct_speed) { # Correct all speeds to be non-zero
+      mon_df <- mon_df %>%
+        dplyr::group_by(trip_id_performed) %>%
+        dplyr::mutate(speed = dplyr::if_else(condition = (speed == 0),
+                                             true = add_distance_error / as.numeric(event_timestamp - dplyr::lag(event_timestamp)),
+                                             false = speed),
+                      speed = dplyr::if_else(condition = is.na(speed),
+                                             true = add_distance_error / as.numeric(dplyr::lead(event_timestamp) - event_timestamp),
+                                             false = speed)) %>%
+        dplyr::ungroup()
+    }
+  }
+
+  # --- FC constraints for speeds ---
+  if (correct_speed) {
+    # Calculate FC delta
+    # And, if a correction has been made, adjust speed as needed
+    mon_df <- mon_df %>%
+      dplyr::group_by(trip_id_performed) %>%
+      dplyr::mutate(time_sec = as.numeric(event_timestamp),
+                    fc_delta = (dplyr::lead(distance) - distance) /
+                      (dplyr::lead(time_sec) - time_sec),
+                    corrected_implied_speed = (dplyr::lead(distance) - dplyr::lag(distance)) /
+                      (dplyr::lead(time_sec) - dplyr::lag(time_sec)),
+                    corrected_implied_speed = tidyr::replace_na(corrected_implied_speed, 0),
+                    speed = dplyr::if_else(condition = correction_applied,
+                                           true = pmax(speed, corrected_implied_speed),
+                                           false = speed)) %>%
+      dplyr::ungroup() %>%
+      dplyr::select(-corrected_implied_speed)
+
+    # Loop through each trip
+    # Each trip must be evaluated separately because each is monotonic to only itself
+    trips <- unique(mon_df$trip_id_performed)
+    num_trips <- length(trips)
+    mon_df_list <- vector("list", num_trips) # Initialize list to store each dataframe
+    for (index in 1:num_trips) {
+      current_trip <- trips[index]
+
+      # Filter DF for current trip, pull speeds and deltas
+      trip_df <- mon_df %>%
+        dplyr::filter(trip_id_performed == current_trip)
+      trip_m_0 <- trip_df$speed
+      trip_delta <- trip_df$fc_delta[-length(trip_df$fc_delta)]
+
+      # Call internal stats C function to adjust speeds to meet FC constraints
+      monotonic_speeds <- correct_speeds_fun(m_0 = trip_m_0,
+                                             deltas = trip_delta)
+      #monotonic_speeds <- .Call(stats:::C_monoFC_m, trip_m_0, trip_delta)
+
+      # Replace speeds with corrected monotonic speeds, remove unneeded columns
+      trip_df <- trip_df %>%
+        dplyr::mutate(speed = monotonic_speeds) %>%
+        dplyr::select(-c(fc_delta, time_sec))
+
+      # Store in global list
+      mon_df_list[[index]] <- trip_df
+    }
+
+    # Combine list to one dataframe
+    final_monotonic_df <- purrr::list_rbind(mon_df_list)
+
+  } else {
+    # If not correcting speeds
+    final_monotonic_df <- mon_df
+  }
+
+  if (return_changes) { # If returning changes, calculate differences at each point
+
+    if (correct_speed) {
+      mono_df_sel <- final_monotonic_df %>%
+        dplyr::select(location_ping_id, distance, speed, correction_applied) %>%
+        dplyr::rename(final_distance = distance,
+                      final_speed = speed)
+
+      changes_df <- distance_df %>%
+        dplyr::select(location_ping_id, trip_id_performed, event_timestamp, distance, speed) %>%
+        dplyr::rename(initial_distance = distance,
+                      initial_speed = speed) %>%
+        dplyr::left_join(y = mono_df_sel, by = "location_ping_id") %>%
+        dplyr::mutate(distance_change = final_distance - initial_distance,
+                      speed_change = final_speed - initial_speed) %>%
+        dplyr::filter((distance_change != 0) |
+                        (speed_change != 0))
+    } else {
+      mono_df_sel <- final_monotonic_df %>%
+        dplyr::select(location_ping_id, distance, correction_applied) %>%
+        dplyr::rename(final_distance = distance)
+
+      changes_df <- distance_df %>%
+        dplyr::select(location_ping_id, trip_id_performed, event_timestamp, distance) %>%
+        dplyr::rename(initial_distance = distance) %>%
+        dplyr::left_join(y = mono_df_sel, by = "location_ping_id") %>%
+        dplyr::mutate(distance_change = final_distance - initial_distance) %>%
+        dplyr::filter(distance_change != 0)
+    }
+
+    return(changes_df %>% dplyr::select(-correction_applied))
+  } else { # Otherwise, return final monotonic df
+    return(final_monotonic_df %>% dplyr::select(-correction_applied))
+  }
+}
