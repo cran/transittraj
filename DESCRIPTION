@@ -1,6 +1,6 @@
 Package: transittraj
 Title: Reconstruct and Visualize Transit Vehicle Trajectories
-Version: 1.0.0
+Version: 1.1.0
 Date: 2026-08-11
 Authors@R: c(
     person("Benjamin", "O'Brien",
@@ -22,9 +22,9 @@ Encoding: UTF-8
 RoxygenNote: 7.3.3
 URL: https://utel-uiuc.github.io/transittraj/
 BugReports: https://github.com/UTEL-UIUC/transittraj/issues
-Imports: data.table, dplyr, gganimate, ggnewscale, ggplot2, ggspatial,
-        hms, ivs, leaflet, magrittr, purrr, rlang, sf, slider, tidyr,
-        tidytransit, viridis
+Imports: data.table, dplyr, geos, gganimate, ggnewscale, ggplot2,
+        ggspatial, hms, ivs, leaflet, magrittr, purrr, rlang, sf,
+        slider, tidyr, tidytransit, viridis
 Depends: R (>= 3.5)
 LazyData: true
 Suggests: knitr, prettymapr, rmarkdown, spelling, testthat (>= 3.0.0)
@@ -33,9 +33,9 @@ Config/Needs/website: rmarkdown, vembedr
 Config/testthat/edition: 3
 Language: en-US
 NeedsCompilation: no
-Packaged: 2026-08-21 16:20:22 UTC; obrie
+Packaged: 2026-09-02 17:25:28 UTC; obrie
 Author: Benjamin O'Brien [aut, cre, cph],
   Lewis Lehe [aut]
 Maintainer: Benjamin O'Brien <obrienbenjaminj@gmail.com>
 Repository: CRAN
-Date/Publication: 2026-08-31 14:00:02 UTC
+Date/Publication: 2026-09-02 21:30:02 UTC

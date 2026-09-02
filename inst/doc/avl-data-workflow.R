@@ -70,9 +70,6 @@ lineE_sf <- lineE_avl %>%
 
 # Generate a map
 avl_map <- ggplot() +
-  # Basemap from OSM
-  ggspatial::annotation_map_tile(type = "cartolight", zoomin = 0,
-                                 progress = "none") +
   # Add alignment & points
   geom_sf(data = lineE_shape, color = "#f43155", linewidth = 1.5) +
   geom_sf(data = lineE_sf, color = "#2f6ff8",

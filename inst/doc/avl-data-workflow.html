@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>The AVL Cleaning Workflow</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">The AVL Cleaning Workflow</h1>
+
+
+
+<div id="introduction" class="section level1">
+<h1>Introduction</h1>
+<p>In this vignette, we will walk through <code>transittraj</code>’s
+entire AVL cleaning workflow, intended to correct or remove problematic
+point observations and trips. This seven-step process is summarized
+below:</p>
+<ol style="list-style-type: decimal">
+<li><p><strong>Clip points to buffer</strong>: AVL pings beyond a
+maximum distance from the route are removed.</p></li>
+<li><p><strong>Project onto route</strong>: AVL latitude-longitude
+points are projected onto the route alignment and converted to
+one-dimensional distances.</p></li>
+<li><p><strong>Remove overlapping subtrips</strong>: Trips with multiple
+vehicles and/or operators are removed.</p></li>
+<li><p><strong>Remove outlying jumps</strong>: Outliers are identified
+and removed.</p></li>
+<li><p><strong>Trim trip tails</strong>: Leading or trailing deadheads
+are identified and removed.</p></li>
+<li><p><strong>Remove insufficient trips</strong>: Trips with gaps or a
+short duration are removed.</p></li>
+<li><p><strong>Monotonic enforcement</strong>: Positions and speeds are
+corrected to be strictly monotonic.</p></li>
+</ol>
+<p>Check out <code>vignette(&quot;articles/input-data-la&quot;)</code> to learn
+more about the AVL and GTFS data we’ll be using. Let’s begin by loading
+the libraries we’ll need:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(transittraj)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">library</span>(tidytransit)</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="fu">library</span>(sf)</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span></code></pre></div>
+</div>
+<div id="step-0-setup" class="section level1">
+<h1>Step 0: Setup</h1>
+<p>We’ll begin by setting up our data. We’ll be using
+<code>lacmta_avl</code> and <code>lacmta_gtfs</code> for our TIDES AVL
+and static GTFS input, respectively.</p>
+<div id="avl" class="section level2">
+<h2>AVL</h2>
+<p>For this example, we’ll work with LA Metro’s Line E light rail in the
+eastbound direction. Let’s filter our AVL data to these
+specifications:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Set our filtering parameters</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>filt_dir <span class="ot">&lt;-</span> <span class="dv">0</span> <span class="co"># 0 is EB, 1 is WB</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>lineE_id <span class="ot">&lt;-</span> <span class="st">&quot;804&quot;</span> <span class="co"># the internal route ID for Line E</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co"># Filter the entire AVL to just the EB</span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>lineE_avl <span class="ot">&lt;-</span> lacmta_avl <span class="sc">%&gt;%</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="fu">filter</span>((route_id <span class="sc">==</span> lineE_id) <span class="sc">&amp;</span> (direction_id <span class="sc">==</span> filt_dir))</span></code></pre></div>
+<p>Now our dataset should include only northbound C53 trips. We can see
+below that this window has about 3,300 individual GPS pings across 16
+trips and 3.5 hours.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Pull attributes about our filtered AVL</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>total_obs <span class="ot">&lt;-</span> <span class="fu">dim</span>(lineE_avl)[<span class="dv">1</span>]</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>num_trips <span class="ot">&lt;-</span> <span class="fu">length</span>(<span class="fu">unique</span>(lineE_avl<span class="sc">$</span>trip_id_performed))</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>time_span <span class="ot">&lt;-</span> <span class="fu">round</span>(<span class="fu">max</span>(lineE_avl<span class="sc">$</span>event_timestamp) <span class="sc">-</span> <span class="fu">min</span>(lineE_avl<span class="sc">$</span>event_timestamp),</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>                   <span class="dv">2</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a><span class="co"># Print attributes</span></span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Total Observations: &quot;</span>, total_obs,</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">Number of trips: &quot;</span>, num_trips,</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">Time span: &quot;</span>, time_span, <span class="st">&quot; hr&quot;</span>,</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>    <span class="at">sep =</span> <span class="st">&quot;&quot;</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a><span class="co">#&gt; Total Observations: 3318</span></span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a><span class="co">#&gt; Number of trips: 16</span></span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a><span class="co">#&gt; Time span: 3.53 hr</span></span></code></pre></div>
+<p>We’ll note that, even though we’re using rail AVL data here, bus AVL
+will work just as well. In fact, <code>transittraj</code> was initially
+designed to handle bus data specifically.</p>
+</div>
+<div id="gtfs" class="section level2">
+<h2>GTFS</h2>
+<p>Next, we should grab the GTFS shape and feed information we want for
+this route and direction. <code>transittraj</code> provides a couple
+functions to help with this. We’ll start by filtering our GTFS to just
+the eastbound Line E:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="co"># Filter the entire GTFS down to EB Line E</span></span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>lineE_gtfs <span class="ot">&lt;-</span> <span class="fu">filter_by_route</span>(<span class="at">gtfs =</span> lacmta_gtfs,</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>                              <span class="at">route_ids =</span> lineE_id,</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>                              <span class="at">dir_id =</span> filt_dir)</span></code></pre></div>
+<p>If we print a summary of this GTFS object, we’ll see that it only
+contains one route:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">summary</span>(lineE_gtfs)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="co">#&gt; tidygtfs object</span></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="co">#&gt; files        agency, routes, stop_times, trips, fare_rules, shapes, calendar, calendar_dates, stops</span></span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a><span class="co">#&gt; agency       Metro - Los Angeles</span></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="co">#&gt; service      from 2026-05-27 to 2026-06-05</span></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a><span class="co">#&gt; uses         stop_times (no frequencies)</span></span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a><span class="co">#&gt; # routes       1</span></span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a><span class="co">#&gt; # trips      123</span></span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="co">#&gt; # stop_ids    29</span></span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a><span class="co">#&gt; # stop_names  29</span></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="co">#&gt; # shapes       1</span></span></code></pre></div>
+<p>Now that we have the filtered GTFS, we must pull the shape we want as
+a simple feature (SF) spatial object. You will need to know two things
+to do this:</p>
+<ul>
+<li><p>Your <code>shape_id</code>. As shown above, there is only one
+shape assigned to the eastbound Line E
+(<code>shape_id = &quot;804EB_RC_221121&quot;</code>). Many GTFS datasets may have
+multiple shapes for a single route, corresponding to short-turns,
+alternate alignments, etc. Check out
+<code>plot_interactive_gtfs()</code> to explore the shapes in your
+GTFS.</p></li>
+<li><p>A coordinate reference system. We recommend projecting all
+spatial data into an appropriate Euclidian coordinate system. Below we
+use the WGS UTM zone for Los Angeles, Zone 11N (with an EPSG number of
+32611).</p></li>
+</ul>
+<p>Now we can use <code>get_shape_geometry()</code> to grab the
+<code>shape_id</code> we want, turn it into a spatial line, and project
+it to the appropriate coordinate system:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Set our parameters</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>lineE_EB_shape_id <span class="ot">&lt;-</span> <span class="st">&quot;804EB_RC_221121&quot;</span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>la_CRS <span class="ot">&lt;-</span> <span class="dv">32611</span></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="co"># Pull the shape we want</span></span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>lineE_shape <span class="ot">&lt;-</span> <span class="fu">get_shape_geometry</span>(<span class="at">gtfs =</span> lineE_gtfs,</span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>                                <span class="at">shape =</span> lineE_EB_shape_id,</span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>                                <span class="at">project_crs =</span> la_CRS)</span></code></pre></div>
+<p>If we print this new object, we’ll see that it is one multilinestring
+with <code>shape_id = &quot;804EB_RC_221121&quot;</code> and the coordinate system
+UTM 11N.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">print</span>(lineE_shape)</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="co">#&gt; Simple feature collection with 1 feature and 1 field</span></span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="co">#&gt; Geometry type: MULTILINESTRING</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="co">#&gt; Dimension:     XY</span></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="co">#&gt; Bounding box:  xmin: 362276 ymin: 3764673 xmax: 393555.7 ymax: 3768928</span></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="co">#&gt; Projected CRS: WGS 84 / UTM zone 11N</span></span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="co">#&gt; # A tibble: 1 × 2</span></span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a><span class="co">#&gt;   shape_id                                                              geometry</span></span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;                                                    &lt;MULTILINESTRING [m]&gt;</span></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a><span class="co">#&gt; 1 804EB_RC_221121 ((362276 3764673, 362291.9 3764699, 362324.6 3764751, 362332.…</span></span></code></pre></div>
+</div>
+<div id="visualizing-our-starting-data" class="section level2">
+<h2>Visualizing our Starting Data</h2>
+<p>We now have all the data we need to proceed. But before we do, let’s
+visualize the AVL points and route geometry so we understand what we’re
+working with:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># Convert GPS points to spatial objects</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="co"># You typically won&#39;t need to do this -- this is just for visualization</span></span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>lineE_sf <span class="ot">&lt;-</span> lineE_avl <span class="sc">%&gt;%</span></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="co"># As SF</span></span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  <span class="fu">st_as_sf</span>(<span class="at">coords =</span> <span class="fu">c</span>(<span class="st">&quot;longitude&quot;</span>, <span class="st">&quot;latitude&quot;</span>),</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>           <span class="at">crs =</span> <span class="dv">4326</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>  <span class="co"># Project to DC</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>  <span class="fu">st_transform</span>(<span class="at">crs =</span> la_CRS)</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a><span class="co"># Generate a map</span></span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>avl_map <span class="ot">&lt;-</span> <span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a>  <span class="co"># Add alignment &amp; points</span></span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>  <span class="fu">geom_sf</span>(<span class="at">data =</span> lineE_shape, <span class="at">color =</span> <span class="st">&quot;#f43155&quot;</span>, <span class="at">linewidth =</span> <span class="fl">1.5</span>) <span class="sc">+</span></span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>  <span class="fu">geom_sf</span>(<span class="at">data =</span> lineE_sf, <span class="at">color =</span> <span class="st">&quot;#2f6ff8&quot;</span>,</span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a>          <span class="at">alpha =</span> <span class="fl">0.2</span>, <span class="at">size =</span> <span class="fl">0.3</span>) <span class="sc">+</span></span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a>  <span class="co"># Format our map</span></span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a>  <span class="fu">theme_void</span>() <span class="sc">+</span></span>
+<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;Line E Shape &amp; AVL&quot;</span>) <span class="sc">+</span></span>
+<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">text =</span> ggplot2<span class="sc">::</span><span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">5</span>))</span>
+<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a>avl_map</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" /><!-- --></p>
+<p>For the most part, our GPS pings follow the route alignment
+excellently. But what’s the delay with the points off-route north of
+downtown? This pings roughly follow the alignment of Line A and end near
+LA Metro’s Division 21 yard. These points most likely correspond to one
+or more deadheading vehicle that were logged into a trip but were not
+actually in revenue service. <code>transittraj</code> includes functions
+intended to identify and remove potential deadheads. We’ll begin
+exploring these in the following section.</p>
+</div>
+</div>
+<div id="steps-1-2-buffer-linearize" class="section level1">
+<h1>Steps 1 &amp; 2: Buffer &amp; Linearize</h1>
+<p>Now that we have our data, we can begin cleaning and processing it.
+The first two steps we recommend are:</p>
+<ul>
+<li><p><strong>Step 1: Buffer</strong>. Clip GPS points to within a
+certain distance of the route alignment.</p></li>
+<li><p><strong>Step 2: Linearize</strong>. Project GPS points onto the
+route alignment to retrieve the linear distance from the start of the
+route.</p></li>
+</ul>
+<p>Both steps are bundled into one function,
+<code>get_linear_distances()</code>. There are two main decision
+variables for this function:</p>
+<ul>
+<li><p>The projection CRS. This should be the same one you used to
+create your route shape.</p></li>
+<li><p>The buffer distance. This will be in the units of your spatial
+projection. Here we’re using WGS UTM, which is in meters. Thus, all
+distance measurements you see in the vignette will be in
+meters.</p></li>
+</ul>
+<p>For this example, we’ll continue using UTM Zone 11N, and we’ll only
+keep points within 50 meters of the route alignment. This should take
+care of those deadheading points we saw earlier.</p>
+<div id="running-the-code" class="section level2">
+<h2>Running the Code</h2>
+<p>We can now clip and linearize our AVL dataframe using
+<code>get_linear_distances()</code>:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># Set parameters</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>buffer <span class="ot">=</span> <span class="dv">50</span> <span class="co"># meters</span></span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a><span class="co"># Run the cleaning function</span></span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>lineE_distances <span class="ot">&lt;-</span> <span class="fu">get_linear_distances</span>(<span class="at">avl_df =</span> lineE_avl,</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>                                        <span class="at">shape_geometry =</span> lineE_shape,</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>                                        <span class="at">project_crs =</span> la_CRS,</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>                                        <span class="at">clip_buffer =</span> buffer)</span></code></pre></div>
+</div>
+<div id="exploring-the-results" class="section level2">
+<h2>Exploring the Results</h2>
+<p>Now each observation is represented by a distance from the route’s
+beginning. Let’s first see how many observations were clipped out:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># Pull dimensions of each</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>step0_obs <span class="ot">&lt;-</span> <span class="fu">dim</span>(lineE_avl)[<span class="dv">1</span>]</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>step1_obs <span class="ot">&lt;-</span> <span class="fu">dim</span>(lineE_distances)[<span class="dv">1</span>]</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a><span class="co"># Print</span></span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Initial: &quot;</span>, step0_obs, <span class="st">&quot; obs&quot;</span>,</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">After buffer: &quot;</span>, step1_obs, <span class="st">&quot; obs&quot;</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">Difference: &quot;</span>, (step0_obs <span class="sc">-</span> step1_obs), <span class="st">&quot; obs removed&quot;</span>)</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a><span class="co">#&gt; Initial:  3318  obs </span></span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a><span class="co">#&gt; After buffer:  3268  obs </span></span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a><span class="co">#&gt; Difference:  50  obs removed</span></span></code></pre></div>
+<p>We had 50 observations clipped out of our dataset. We can also take a
+look at the new header of our dataset:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">head</span>(lineE_distances)</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="co">#&gt;                   location_ping_id service_date trip_id_performed    speed</span></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="co">#&gt; 1 4af122e0b668d6821335d641a89ad312   2026-05-27          63383915 1.743456</span></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="co">#&gt; 2 ef3b602e52fe3556a7539491e7792c74   2026-05-27          63383915 3.308096</span></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a><span class="co">#&gt; 3 a940808be7f3a59066c981bffe3e537a   2026-05-27          63383915 2.145792</span></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a><span class="co">#&gt; 4 6df05dfca51b44f25d403356de5a3e0a   2026-05-27          63383915 0.000000</span></span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a><span class="co">#&gt; 5 5326947f997dad696a09f510d4857d2c   2026-05-27          63383915 0.000000</span></span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="co">#&gt; 6 0eeafa189aab82fe0bff169a9dc587f7   2026-05-27          63383915 0.000000</span></span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a><span class="co">#&gt;       vehicle_id     event_timestamp direction_id        shape_id route_id</span></span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a><span class="co">#&gt; 1 1047-1048-1185 2026-05-27 05:48:58            0 804EB_RC_221121      804</span></span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a><span class="co">#&gt; 2 1047-1048-1185 2026-05-27 05:49:19            0 804EB_RC_221121      804</span></span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a><span class="co">#&gt; 3 1047-1048-1185 2026-05-27 05:49:40            0 804EB_RC_221121      804</span></span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a><span class="co">#&gt; 4 1047-1048-1185 2026-05-27 05:49:59            0 804EB_RC_221121      804</span></span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a><span class="co">#&gt; 5 1047-1048-1185 2026-05-27 05:50:20            0 804EB_RC_221121      804</span></span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a><span class="co">#&gt; 6 1047-1048-1185 2026-05-27 05:50:40            0 804EB_RC_221121      804</span></span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a><span class="co">#&gt;    distance</span></span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a><span class="co">#&gt; 1 197.58271</span></span>
+<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a><span class="co">#&gt; 2  99.22546</span></span>
+<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a><span class="co">#&gt; 3  98.72317</span></span>
+<span id="cb11-20"><a href="#cb11-20" tabindex="-1"></a><span class="co">#&gt; 4  62.66861</span></span>
+<span id="cb11-21"><a href="#cb11-21" tabindex="-1"></a><span class="co">#&gt; 5  83.11011</span></span>
+<span id="cb11-22"><a href="#cb11-22" tabindex="-1"></a><span class="co">#&gt; 6  31.67278</span></span></code></pre></div>
+<p>Now, instead of <code>latitude</code> and <code>longitude</code>
+columns, we have a single numeric <code>distance</code> column. We will
+only work with these one-dimensional distances for the rest of this
+vignette.</p>
+</div>
+</div>
+<div id="step-3-cleaning-overlapping-subtrips" class="section level1">
+<h1>Step 3: Cleaning Overlapping Subtrips</h1>
+<p>In some AVL systems, multiple vehicle or operator IDs can be recorded
+for the same trip. Sometimes this is okay: there may, for example, be an
+operator shift change mid-trip. Other times, however, these multiple
+vehicles/operators are logged in at the same time (“overlapping”). This
+creates problems, as it becomes difficult for <code>transittraj</code>
+to understand what the trip is <em>supposed</em> to be doing.</p>
+<p>For <strong>Step 3</strong> of the cleaning workflow,
+<code>clean_overlapping_subtrips()</code> identifies and removes these
+trips. Each distinct “subtrip” (a unique combination of trip ID, vehicle
+ID, and operator ID) is identified, then we check whether the time
+ranges of these subtrips overlap. There are a few key decision
+variables:</p>
+<ul>
+<li><p>Should operator IDs be checked? This will look for overlapping
+distinct operator IDs in each trip.</p></li>
+<li><p>If a subtrip has only one observation assigned to it, should it
+be removed?</p></li>
+<li><p>Should trips with multiple subtrips that do <em>not</em> overlap
+be removed?</p></li>
+</ul>
+<p>The LACMTA dataset does not have include operator IDs, so we will not
+check for operators. We’ll say that it’s okay to leave in subtrips that
+aren’t overlapping.</p>
+<div id="running-the-code-1" class="section level2">
+<h2>Running the Code</h2>
+<p>Below we use <code>clean_overlapping_subtrips()</code> to identify
+and remove problematic trips:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="co"># Set parameters</span></span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>lineE_check_op <span class="ot">&lt;-</span> <span class="cn">FALSE</span></span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>lineE_remove_singles <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>lineE_remove_non_overlap <span class="ot">&lt;-</span> <span class="cn">FALSE</span></span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a><span class="co"># Run function</span></span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>lineE_cleaned_subtrips <span class="ot">&lt;-</span> <span class="fu">clean_overlapping_subtrips</span>(</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>  <span class="at">distance_df =</span> lineE_distances,</span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>  <span class="at">check_operator =</span> lineE_check_op,</span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a>  <span class="at">remove_single_observations =</span> lineE_remove_singles,</span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>  <span class="at">remove_non_overlapping =</span> lineE_remove_non_overlap</span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="exploring-the-results-1" class="section level2">
+<h2>Exploring the Results</h2>
+<p>Let’s see how many trips or observations were removed:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="co"># Pull new dimensions</span></span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>step3_obs <span class="ot">&lt;-</span> <span class="fu">dim</span>(lineE_cleaned_subtrips)[<span class="dv">1</span>]</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>step1_trips <span class="ot">&lt;-</span> <span class="fu">length</span>(<span class="fu">unique</span>(lineE_distances<span class="sc">$</span>trip_id_performed))</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>step3_trips <span class="ot">&lt;-</span> <span class="fu">length</span>(<span class="fu">unique</span>(lineE_cleaned_subtrips<span class="sc">$</span>trip_id_performed))</span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a></span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a><span class="co"># Print</span></span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Initial: &quot;</span>, step1_obs, <span class="st">&quot; obs, &quot;</span>, step1_trips, <span class="st">&quot; trips&quot;</span>,</span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">After: &quot;</span>, step3_obs, <span class="st">&quot; obs, &quot;</span>, step3_trips, <span class="st">&quot; trips&quot;</span>,</span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">Difference: &quot;</span>, (step1_obs <span class="sc">-</span> step3_obs), <span class="st">&quot; obs, &quot;</span>,</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>    (step1_trips <span class="sc">-</span> step3_trips), <span class="st">&quot; removed&quot;</span>)</span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a><span class="co">#&gt; Initial:  3268  obs,  16  trips </span></span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a><span class="co">#&gt; After:  3104  obs,  15  trips </span></span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a><span class="co">#&gt; Difference:  164  obs,  1  removed</span></span></code></pre></div>
+<p>We can see that one trip, consisting of 164 points, violated our
+requirements. To see what that trip is, we’ll introduce a new feature of
+<code>transittraj</code>: the <code>return_removals</code> parameter.
+Each cleaning function used in this vignette allows a parameter
+<code>return_removals</code> that, when set to <code>TRUE</code>, will
+return a dataframe of the points/trips removed through that step and a
+brief explanation of why they were removed. Let’s check it out:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="co"># Get removals from previous function</span></span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>lineE_step3_removals <span class="ot">&lt;-</span> <span class="fu">clean_overlapping_subtrips</span>(</span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>  <span class="co"># Same settigns as before</span></span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>  <span class="at">distance_df =</span> lineE_distances,</span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a>  <span class="at">check_operator =</span> lineE_check_op,</span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a>  <span class="at">remove_single_observations =</span> lineE_remove_singles,</span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a>  <span class="at">remove_non_overlapping =</span> lineE_remove_non_overlap,</span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a>  <span class="co"># Return removals</span></span>
+<span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a>  <span class="at">return_removals =</span> <span class="cn">TRUE</span></span>
+<span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a>)</span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a></span>
+<span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a><span class="co"># Print removed point</span></span>
+<span id="cb14-13"><a href="#cb14-13" tabindex="-1"></a><span class="fu">print</span>(lineE_step3_removals)</span>
+<span id="cb14-14"><a href="#cb14-14" tabindex="-1"></a><span class="co">#&gt; # A tibble: 1 × 7</span></span>
+<span id="cb14-15"><a href="#cb14-15" tabindex="-1"></a><span class="co">#&gt;   trip_id_performed subtrip n_obs reason         action               time_range</span></span>
+<span id="cb14-16"><a href="#cb14-16" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;             &lt;chr&gt;   &lt;int&gt; &lt;chr&gt;          &lt;chr&gt;                 &lt;iv&lt;dbl&gt;&gt;</span></span>
+<span id="cb14-17"><a href="#cb14-17" tabindex="-1"></a><span class="co">#&gt; 1 63384142          &lt;NA&gt;       NA overlapping s… remov… [1779890156, 1779895100)</span></span>
+<span id="cb14-18"><a href="#cb14-18" tabindex="-1"></a><span class="co">#&gt; # ℹ 1 more variable: n_subtrips_in_range &lt;int&gt;</span></span></code></pre></div>
+<p>We can see that this trip, ID <code>63384142</code>, was removed
+because at some point, there were multiple subtrips (i.e., vehicle IDs)
+in service at once. Let’s visualize what that looked like:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>plot_times <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fu">as.POSIXct</span>(<span class="st">&quot;2026-05-27 07:35:00&quot;</span>,</span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a>                           <span class="at">tz =</span> <span class="st">&quot;America/Los_Angeles&quot;</span>),</span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a>                <span class="fu">as.POSIXct</span>(<span class="st">&quot;2026-05-27 08:02:00&quot;</span>,</span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a>                           <span class="at">tz =</span> <span class="st">&quot;America/Los_Angeles&quot;</span>))</span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a>plot_df <span class="ot">&lt;-</span> lineE_distances <span class="sc">%&gt;%</span></span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a>  <span class="fu">filter</span>((trip_id_performed <span class="sc">==</span> <span class="st">&quot;63384142&quot;</span>) <span class="sc">&amp;</span></span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a>           (event_timestamp <span class="sc">&gt;=</span> plot_times[<span class="dv">1</span>]) <span class="sc">&amp;</span></span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a>           (event_timestamp <span class="sc">&lt;=</span> plot_times[<span class="dv">2</span>]))</span>
+<span id="cb15-9"><a href="#cb15-9" tabindex="-1"></a></span>
+<span id="cb15-10"><a href="#cb15-10" tabindex="-1"></a>subtrips_plot <span class="ot">&lt;-</span> <span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb15-11"><a href="#cb15-11" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">data =</span> plot_df,</span>
+<span id="cb15-12"><a href="#cb15-12" tabindex="-1"></a>            <span class="fu">aes</span>(<span class="at">x =</span> event_timestamp, <span class="at">y =</span> distance, <span class="at">color =</span> vehicle_id),</span>
+<span id="cb15-13"><a href="#cb15-13" tabindex="-1"></a>            <span class="at">linewidth =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.6</span>) <span class="sc">+</span></span>
+<span id="cb15-14"><a href="#cb15-14" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> plot_df,</span>
+<span id="cb15-15"><a href="#cb15-15" tabindex="-1"></a>             <span class="fu">aes</span>(<span class="at">x =</span> event_timestamp, <span class="at">y =</span> distance, <span class="at">color =</span> vehicle_id),</span>
+<span id="cb15-16"><a href="#cb15-16" tabindex="-1"></a>             <span class="at">size =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb15-17"><a href="#cb15-17" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">name =</span> <span class="st">&quot;Vehicle ID&quot;</span>,</span>
+<span id="cb15-18"><a href="#cb15-18" tabindex="-1"></a>                     <span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;1065-1075-1093&quot;</span> <span class="ot">=</span> <span class="st">&quot;#2f6ff8&quot;</span>,</span>
+<span id="cb15-19"><a href="#cb15-19" tabindex="-1"></a>                                <span class="st">&quot;452&quot;</span> <span class="ot">=</span> <span class="st">&quot;#f43155&quot;</span>)) <span class="sc">+</span></span>
+<span id="cb15-20"><a href="#cb15-20" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb15-21"><a href="#cb15-21" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Time&quot;</span>,</span>
+<span id="cb15-22"><a href="#cb15-22" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">&quot;Distance (m)&quot;</span>,</span>
+<span id="cb15-23"><a href="#cb15-23" tabindex="-1"></a>       <span class="at">title =</span> <span class="st">&quot;Overlapping Sub-Trips on Line E&quot;</span>)</span>
+<span id="cb15-24"><a href="#cb15-24" tabindex="-1"></a>subtrips_plot</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" /><!-- --></p>
+<p>It looks like, for some reason, a new vehicle – ID <code>452</code> –
+logged into this trip ID around 7:37, soon after which, data from the
+original trainset dropped out before returning shortly after 8:00.
+Because it’s hard to tell what actually happened here, we should leave
+this trip out.</p>
+</div>
+</div>
+<div id="step-4-clean-outlierjumps" class="section level1">
+<h1>Step 4: Clean Outlier/Jumps</h1>
+<p>GPS data, especially in urban areas, is noisy. Sometimes that noise
+manifests as a large instantaneous jump that does not match an points’s
+surrounding observations. In <strong>Step 4</strong>, the function
+<code>clean_jumps()</code> detects and removes these using median
+filters. This has two main decision variables:</p>
+<ul>
+<li><p>The neighborhood width, the total number of points to consider
+around each observation.</p></li>
+<li><p>The maximum distance between a point and the median of the
+neighborhood around it. This can be defined as an absolute distance from
+the median, in distance units, or as a multiple of the window’s median
+absolute deviation (MAD) (this is known as a <em>Hampel
+filter</em>).</p></li>
+</ul>
+<p>For this example, we’ll use the default neighborhood width of 7 (3
+points on either side of each observation). We’ll keep our outlier
+criteria simple (though not very robust) and use a maximum allowable
+deviation of 80 meters. This means that if any given point is more than
+80 meters away from the median of its surrounding points, it will be
+tossed.</p>
+<div id="running-the-code-2" class="section level2">
+<h2>Running the Code</h2>
+<p>Let’s run <code>clean_jumps()</code> as discussed above. We’ll input
+our maximum allowable distance deviation, and set the <span class="math inline">\(t\)</span> cutoff used by a Hampel filter to
+infinity (this will prevent the Hampel filter from removing any
+points):</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="co"># Set parameters</span></span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a>lineE_max_jump <span class="ot">&lt;-</span> <span class="dv">80</span> <span class="co"># meters</span></span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a>lineE_min_jump <span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span> <span class="sc">*</span> lineE_max_jump <span class="co"># meters</span></span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a><span class="co"># Run function</span></span>
+<span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a>lineE_no_jumps <span class="ot">&lt;-</span> <span class="fu">clean_jumps</span>(<span class="at">distance_df =</span> lineE_cleaned_subtrips,</span>
+<span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a>                              <span class="at">max_median_deviation =</span> lineE_max_jump,</span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a>                              <span class="at">min_median_deviation =</span> lineE_min_jump,</span>
+<span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a>                              <span class="at">t_cutoff =</span> <span class="cn">Inf</span>)</span></code></pre></div>
+</div>
+<div id="exploring-the-results-2" class="section level2">
+<h2>Exploring the Results</h2>
+<p>Let’s see how many points were removed as outliers from this
+filter:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="co"># Pull dimensions</span></span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a>step4_obs <span class="ot">&lt;-</span> <span class="fu">dim</span>(lineE_no_jumps)[<span class="dv">1</span>]</span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a><span class="co"># Print</span></span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Initial: &quot;</span>, step3_obs, <span class="st">&quot; obs&quot;</span>,</span>
+<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">After: &quot;</span>, step4_obs, <span class="st">&quot; obs&quot;</span>,</span>
+<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">Difference: &quot;</span>, (step3_obs <span class="sc">-</span> step4_obs), <span class="st">&quot; obs removed&quot;</span>)</span>
+<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a><span class="co">#&gt; Initial:  3104  obs </span></span>
+<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a><span class="co">#&gt; After:  3085  obs </span></span>
+<span id="cb17-10"><a href="#cb17-10" tabindex="-1"></a><span class="co">#&gt; Difference:  19  obs removed</span></span></code></pre></div>
+<p>With these settings, 19 points were removed. We can use
+<code>return_removals = TRUE</code>, just like in Step 3, to take a
+closer look at these outlying points:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a><span class="co"># Get removals</span></span>
+<span id="cb18-2"><a href="#cb18-2" tabindex="-1"></a>lineE_step4_removals <span class="ot">&lt;-</span> <span class="fu">clean_jumps</span>(</span>
+<span id="cb18-3"><a href="#cb18-3" tabindex="-1"></a>  <span class="co"># Same settings as before</span></span>
+<span id="cb18-4"><a href="#cb18-4" tabindex="-1"></a>  <span class="at">distance_df =</span> lineE_cleaned_subtrips,</span>
+<span id="cb18-5"><a href="#cb18-5" tabindex="-1"></a>  <span class="at">max_median_deviation =</span> lineE_max_jump,</span>
+<span id="cb18-6"><a href="#cb18-6" tabindex="-1"></a>                              <span class="at">min_median_deviation =</span> lineE_min_jump,</span>
+<span id="cb18-7"><a href="#cb18-7" tabindex="-1"></a>                              <span class="at">t_cutoff =</span> <span class="cn">Inf</span>,</span>
+<span id="cb18-8"><a href="#cb18-8" tabindex="-1"></a>  <span class="co"># Return removals</span></span>
+<span id="cb18-9"><a href="#cb18-9" tabindex="-1"></a>  <span class="at">return_removals =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb18-10"><a href="#cb18-10" tabindex="-1"></a></span>
+<span id="cb18-11"><a href="#cb18-11" tabindex="-1"></a><span class="co"># Print the removed points</span></span>
+<span id="cb18-12"><a href="#cb18-12" tabindex="-1"></a><span class="fu">head</span>(lineE_step4_removals)</span>
+<span id="cb18-13"><a href="#cb18-13" tabindex="-1"></a><span class="co">#&gt; # A tibble: 6 × 13</span></span>
+<span id="cb18-14"><a href="#cb18-14" tabindex="-1"></a><span class="co">#&gt;   trip_id_performed event_timestamp     distance location_ping_id     window_med</span></span>
+<span id="cb18-15"><a href="#cb18-15" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;             &lt;dttm&gt;                 &lt;dbl&gt; &lt;chr&gt;                     &lt;dbl&gt;</span></span>
+<span id="cb18-16"><a href="#cb18-16" tabindex="-1"></a><span class="co">#&gt; 1 63383915          2026-05-27 06:54:20  24525.  592c6a9ca9508f64bfe…    24605. </span></span>
+<span id="cb18-17"><a href="#cb18-17" tabindex="-1"></a><span class="co">#&gt; 2 63383948          2026-05-27 07:24:17    171.  fd55ddbf567e31172fa…       80.4</span></span>
+<span id="cb18-18"><a href="#cb18-18" tabindex="-1"></a><span class="co">#&gt; 3 63383948          2026-05-27 07:24:21     80.4 33cfe32fd9f610d35f5…      171. </span></span>
+<span id="cb18-19"><a href="#cb18-19" tabindex="-1"></a><span class="co">#&gt; 4 63383991          2026-05-27 06:25:21   6848.  743565c9c4c2528876e…     6934. </span></span>
+<span id="cb18-20"><a href="#cb18-20" tabindex="-1"></a><span class="co">#&gt; 5 63383991          2026-05-27 06:37:19  15471.  d9530962c94a7217eb9…    15383. </span></span>
+<span id="cb18-21"><a href="#cb18-21" tabindex="-1"></a><span class="co">#&gt; 6 63383991          2026-05-27 06:37:39  15383.  4d17c4eb2fb5a537961…    15471. </span></span>
+<span id="cb18-22"><a href="#cb18-22" tabindex="-1"></a><span class="co">#&gt; # ℹ 8 more variables: window_mad &lt;dbl&gt;, med_dist &lt;dbl&gt;, is_implosion &lt;lgl&gt;,</span></span>
+<span id="cb18-23"><a href="#cb18-23" tabindex="-1"></a><span class="co">#&gt; #   is_tail &lt;lgl&gt;, ignore_observation &lt;lgl&gt;, mad_ok &lt;lgl&gt;, dev_ok &lt;lgl&gt;,</span></span>
+<span id="cb18-24"><a href="#cb18-24" tabindex="-1"></a><span class="co">#&gt; #   all_ok &lt;lgl&gt;</span></span></code></pre></div>
+<p>Let’s some of the pings removed from trip 63383991. We can plot these
+points around the fourth row above to see the jump:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a><span class="co"># Filter dataframe to our tirp &amp; distances</span></span>
+<span id="cb19-2"><a href="#cb19-2" tabindex="-1"></a>plot_df <span class="ot">&lt;-</span> lineE_cleaned_subtrips <span class="sc">%&gt;%</span></span>
+<span id="cb19-3"><a href="#cb19-3" tabindex="-1"></a>  <span class="fu">filter</span>(trip_id_performed <span class="sc">==</span> <span class="st">&quot;63383991&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb19-4"><a href="#cb19-4" tabindex="-1"></a>  <span class="fu">filter</span>((distance <span class="sc">&gt;=</span> <span class="dv">6400</span>) <span class="sc">&amp;</span> (distance <span class="sc">&lt;=</span> <span class="dv">7600</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb19-5"><a href="#cb19-5" tabindex="-1"></a>  <span class="co"># Join removals</span></span>
+<span id="cb19-6"><a href="#cb19-6" tabindex="-1"></a>  <span class="fu">left_join</span>(<span class="at">y =</span> (lineE_step4_removals <span class="sc">%&gt;%</span> <span class="fu">select</span>(location_ping_id, all_ok)),</span>
+<span id="cb19-7"><a href="#cb19-7" tabindex="-1"></a>            <span class="at">by =</span> <span class="st">&quot;location_ping_id&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb19-8"><a href="#cb19-8" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">all_ok =</span> tidyr<span class="sc">::</span><span class="fu">replace_na</span>(all_ok, <span class="cn">TRUE</span>))</span>
+<span id="cb19-9"><a href="#cb19-9" tabindex="-1"></a></span>
+<span id="cb19-10"><a href="#cb19-10" tabindex="-1"></a><span class="co"># Create a plot</span></span>
+<span id="cb19-11"><a href="#cb19-11" tabindex="-1"></a>jumps_plot <span class="ot">&lt;-</span> <span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb19-12"><a href="#cb19-12" tabindex="-1"></a>  <span class="co"># Plot the points</span></span>
+<span id="cb19-13"><a href="#cb19-13" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> plot_df,</span>
+<span id="cb19-14"><a href="#cb19-14" tabindex="-1"></a>             <span class="fu">aes</span>(<span class="at">x =</span> event_timestamp, <span class="at">y =</span> distance,</span>
+<span id="cb19-15"><a href="#cb19-15" tabindex="-1"></a>                 <span class="at">color =</span> all_ok, <span class="at">shape =</span> all_ok),</span>
+<span id="cb19-16"><a href="#cb19-16" tabindex="-1"></a>             <span class="at">size =</span> <span class="dv">3</span>, <span class="at">stroke =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb19-17"><a href="#cb19-17" tabindex="-1"></a>  <span class="co"># Format the points</span></span>
+<span id="cb19-18"><a href="#cb19-18" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">name =</span> <span class="st">&quot;Point OK?&quot;</span>,</span>
+<span id="cb19-19"><a href="#cb19-19" tabindex="-1"></a>                     <span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;FALSE&quot;</span> <span class="ot">=</span> <span class="st">&quot;#f43155&quot;</span>,</span>
+<span id="cb19-20"><a href="#cb19-20" tabindex="-1"></a>                                <span class="st">&quot;TRUE&quot;</span> <span class="ot">=</span> <span class="st">&quot;#2f6ff8&quot;</span>)) <span class="sc">+</span></span>
+<span id="cb19-21"><a href="#cb19-21" tabindex="-1"></a>  <span class="fu">scale_shape_manual</span>(<span class="at">name =</span> <span class="st">&quot;Point OK?&quot;</span>,</span>
+<span id="cb19-22"><a href="#cb19-22" tabindex="-1"></a>                     <span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;FALSE&quot;</span> <span class="ot">=</span> <span class="dv">4</span>,</span>
+<span id="cb19-23"><a href="#cb19-23" tabindex="-1"></a>                                <span class="st">&quot;TRUE&quot;</span> <span class="ot">=</span> <span class="dv">16</span>)) <span class="sc">+</span></span>
+<span id="cb19-24"><a href="#cb19-24" tabindex="-1"></a>  <span class="co"># Format the plot</span></span>
+<span id="cb19-25"><a href="#cb19-25" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb19-26"><a href="#cb19-26" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Time&quot;</span>,</span>
+<span id="cb19-27"><a href="#cb19-27" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">&quot;Distance (m)&quot;</span>,</span>
+<span id="cb19-28"><a href="#cb19-28" tabindex="-1"></a>       <span class="at">title =</span> <span class="st">&quot;Outliers on Line E&quot;</span>,</span>
+<span id="cb19-29"><a href="#cb19-29" tabindex="-1"></a>       <span class="at">subtitle =</span> <span class="st">&quot;Trip 63383991&quot;</span>)</span>
+<span id="cb19-30"><a href="#cb19-30" tabindex="-1"></a>jumps_plot</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" /><!-- --></p>
+<p>This plot makes it pretty clear that this particular point is out of
+line with its surroundings. We recommend playing around with this
+function’s tuning parameters until you find settings that make sense for
+your data. Read more about these options and the theory behind median
+filters at <code>help(clean_jumps)</code>.</p>
+</div>
+</div>
+<div id="step-5-trim-trip-tails" class="section level1">
+<h1>Step 5: Trim Trip Tails</h1>
+<p>Earlier in this vignette, we used a spatial buffer to clean what
+appeared to be deadheads. But what if a trip deadheads close to – or
+along – its route alignment? In <strong>Step 5</strong>, the function
+<code>trim_trips()</code> is designed to handle these scenarios by
+trimming the tails off of trips.</p>
+<p>The function identifies the observations with the minimum and maximum
+distance values, and removes any observations which occur before/after
+these points. There is one main decision variable here: should beginning
+tails be trimmed, ending tails, or both? For this example, we’ll trim
+both ends of trips.</p>
+<div id="running-the-code-3" class="section level2">
+<h2>Running the Code</h2>
+<p>Let’s run <code>trim_trips()</code>, trimming both the beginning and
+ends of each trip:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a><span class="co"># Set parameters</span></span>
+<span id="cb20-2"><a href="#cb20-2" tabindex="-1"></a>lineE_trim_type <span class="ot">&lt;-</span> <span class="st">&quot;both&quot;</span></span>
+<span id="cb20-3"><a href="#cb20-3" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" tabindex="-1"></a><span class="co"># Run function</span></span>
+<span id="cb20-5"><a href="#cb20-5" tabindex="-1"></a>lineE_trimmed <span class="ot">&lt;-</span> <span class="fu">trim_trips</span>(<span class="at">distance_df =</span> lineE_no_jumps,</span>
+<span id="cb20-6"><a href="#cb20-6" tabindex="-1"></a>                            <span class="at">trim_type =</span> lineE_trim_type)</span></code></pre></div>
+</div>
+<div id="exploring-the-results-3" class="section level2">
+<h2>Exploring the Results</h2>
+<p>Let’s see what was removed:</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a><span class="co"># Pull dimensions</span></span>
+<span id="cb21-2"><a href="#cb21-2" tabindex="-1"></a>step5_obs <span class="ot">&lt;-</span> <span class="fu">dim</span>(lineE_trimmed)[<span class="dv">1</span>]</span>
+<span id="cb21-3"><a href="#cb21-3" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" tabindex="-1"></a><span class="co"># Print</span></span>
+<span id="cb21-5"><a href="#cb21-5" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Initial: &quot;</span>, step4_obs, <span class="st">&quot; obs&quot;</span>,</span>
+<span id="cb21-6"><a href="#cb21-6" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">After: &quot;</span>, step5_obs, <span class="st">&quot; obs&quot;</span>,</span>
+<span id="cb21-7"><a href="#cb21-7" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">Difference: &quot;</span>, (step4_obs <span class="sc">-</span> step5_obs), <span class="st">&quot; obs removed&quot;</span>)</span>
+<span id="cb21-8"><a href="#cb21-8" tabindex="-1"></a><span class="co">#&gt; Initial:  3085  obs </span></span>
+<span id="cb21-9"><a href="#cb21-9" tabindex="-1"></a><span class="co">#&gt; After:  2924  obs </span></span>
+<span id="cb21-10"><a href="#cb21-10" tabindex="-1"></a><span class="co">#&gt; Difference:  161  obs removed</span></span></code></pre></div>
+<p>For this example, some long deadheads may have been removed. Let’s
+take a look at a the points removed:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" tabindex="-1"></a>lineE_step5_removals <span class="ot">&lt;-</span> <span class="fu">trim_trips</span>(</span>
+<span id="cb22-2"><a href="#cb22-2" tabindex="-1"></a>  <span class="co"># Same settings as before</span></span>
+<span id="cb22-3"><a href="#cb22-3" tabindex="-1"></a>  <span class="at">distance_df =</span> lineE_no_jumps,</span>
+<span id="cb22-4"><a href="#cb22-4" tabindex="-1"></a>  <span class="at">trim_type =</span> lineE_trim_type,</span>
+<span id="cb22-5"><a href="#cb22-5" tabindex="-1"></a>  <span class="co"># Return removals</span></span>
+<span id="cb22-6"><a href="#cb22-6" tabindex="-1"></a>  <span class="at">return_removals =</span> <span class="cn">TRUE</span></span>
+<span id="cb22-7"><a href="#cb22-7" tabindex="-1"></a>)</span>
+<span id="cb22-8"><a href="#cb22-8" tabindex="-1"></a></span>
+<span id="cb22-9"><a href="#cb22-9" tabindex="-1"></a><span class="fu">head</span>(lineE_step5_removals)</span>
+<span id="cb22-10"><a href="#cb22-10" tabindex="-1"></a><span class="co">#&gt; # A tibble: 6 × 10</span></span>
+<span id="cb22-11"><a href="#cb22-11" tabindex="-1"></a><span class="co">#&gt;   trip_id_performed event_timestamp     distance min_dist_index max_dist_index</span></span>
+<span id="cb22-12"><a href="#cb22-12" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;             &lt;dttm&gt;                 &lt;dbl&gt;          &lt;int&gt;          &lt;int&gt;</span></span>
+<span id="cb22-13"><a href="#cb22-13" tabindex="-1"></a><span class="co">#&gt; 1 63383915          2026-05-27 05:48:58    198.               6            243</span></span>
+<span id="cb22-14"><a href="#cb22-14" tabindex="-1"></a><span class="co">#&gt; 2 63383915          2026-05-27 05:49:19     99.2              6            243</span></span>
+<span id="cb22-15"><a href="#cb22-15" tabindex="-1"></a><span class="co">#&gt; 3 63383915          2026-05-27 05:49:40     98.7              6            243</span></span>
+<span id="cb22-16"><a href="#cb22-16" tabindex="-1"></a><span class="co">#&gt; 4 63383915          2026-05-27 05:49:59     62.7              6            243</span></span>
+<span id="cb22-17"><a href="#cb22-17" tabindex="-1"></a><span class="co">#&gt; 5 63383915          2026-05-27 05:50:20     83.1              6            243</span></span>
+<span id="cb22-18"><a href="#cb22-18" tabindex="-1"></a><span class="co">#&gt; 6 63383917          2026-05-27 06:07:20     55.3              3            210</span></span>
+<span id="cb22-19"><a href="#cb22-19" tabindex="-1"></a><span class="co">#&gt; # ℹ 5 more variables: row_index &lt;int&gt;, before_min &lt;lgl&gt;, after_max &lt;lgl&gt;,</span></span>
+<span id="cb22-20"><a href="#cb22-20" tabindex="-1"></a><span class="co">#&gt; #   obs_ok &lt;lgl&gt;, location_ping_id &lt;chr&gt;</span></span></code></pre></div>
+<p>We’ll plot the points removed along trip 63383991:</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a><span class="co"># Filter dataframe to our tirp &amp; distances</span></span>
+<span id="cb23-2"><a href="#cb23-2" tabindex="-1"></a>plot_df <span class="ot">&lt;-</span> lineE_no_jumps <span class="sc">%&gt;%</span></span>
+<span id="cb23-3"><a href="#cb23-3" tabindex="-1"></a>  <span class="fu">filter</span>(trip_id_performed <span class="sc">==</span> <span class="st">&quot;63383991&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb23-4"><a href="#cb23-4" tabindex="-1"></a>  <span class="fu">filter</span>(distance <span class="sc">&lt;=</span> <span class="dv">5000</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb23-5"><a href="#cb23-5" tabindex="-1"></a>  <span class="co"># Join removals</span></span>
+<span id="cb23-6"><a href="#cb23-6" tabindex="-1"></a>  <span class="fu">left_join</span>(<span class="at">y =</span> (lineE_step5_removals <span class="sc">%&gt;%</span> <span class="fu">select</span>(location_ping_id, obs_ok)),</span>
+<span id="cb23-7"><a href="#cb23-7" tabindex="-1"></a>            <span class="at">by =</span> <span class="st">&quot;location_ping_id&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb23-8"><a href="#cb23-8" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">obs_ok =</span> tidyr<span class="sc">::</span><span class="fu">replace_na</span>(obs_ok, <span class="cn">TRUE</span>))</span>
+<span id="cb23-9"><a href="#cb23-9" tabindex="-1"></a></span>
+<span id="cb23-10"><a href="#cb23-10" tabindex="-1"></a><span class="co"># Create a plot</span></span>
+<span id="cb23-11"><a href="#cb23-11" tabindex="-1"></a>trimmed_plot <span class="ot">&lt;-</span> <span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb23-12"><a href="#cb23-12" tabindex="-1"></a>  <span class="co"># Plot the points</span></span>
+<span id="cb23-13"><a href="#cb23-13" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">data =</span> plot_df,</span>
+<span id="cb23-14"><a href="#cb23-14" tabindex="-1"></a>            <span class="fu">aes</span>(<span class="at">x =</span> event_timestamp, <span class="at">y =</span> distance,</span>
+<span id="cb23-15"><a href="#cb23-15" tabindex="-1"></a>                <span class="at">color =</span> obs_ok),</span>
+<span id="cb23-16"><a href="#cb23-16" tabindex="-1"></a>            <span class="at">linewidth =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb23-17"><a href="#cb23-17" tabindex="-1"></a>  <span class="co"># Format the points</span></span>
+<span id="cb23-18"><a href="#cb23-18" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">name =</span> <span class="st">&quot;Point OK?&quot;</span>,</span>
+<span id="cb23-19"><a href="#cb23-19" tabindex="-1"></a>                     <span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;FALSE&quot;</span> <span class="ot">=</span> <span class="st">&quot;#f43155&quot;</span>,</span>
+<span id="cb23-20"><a href="#cb23-20" tabindex="-1"></a>                                <span class="st">&quot;TRUE&quot;</span> <span class="ot">=</span> <span class="st">&quot;#2f6ff8&quot;</span>)) <span class="sc">+</span></span>
+<span id="cb23-21"><a href="#cb23-21" tabindex="-1"></a>  <span class="co"># Format the plot</span></span>
+<span id="cb23-22"><a href="#cb23-22" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb23-23"><a href="#cb23-23" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Time&quot;</span>,</span>
+<span id="cb23-24"><a href="#cb23-24" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">&quot;Distance (m)&quot;</span>,</span>
+<span id="cb23-25"><a href="#cb23-25" tabindex="-1"></a>       <span class="at">title =</span> <span class="st">&quot;Trimmed Trips on Line E&quot;</span>,</span>
+<span id="cb23-26"><a href="#cb23-26" tabindex="-1"></a>       <span class="at">subtitle =</span> <span class="st">&quot;Trip 63383991&quot;</span>)</span>
+<span id="cb23-27"><a href="#cb23-27" tabindex="-1"></a>trimmed_plot</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" /><!-- --></p>
+<p>This train travels along its route for quite a while before reaching
+the western terminal and turning around. This is likely a deadhead, or a
+revenue trip logged into the wrong trip ID. Regardless, in order to
+achieve a clean, monotonic trajectory, we’ll throw out the points
+occurring before the trip’s starting terminal.</p>
+</div>
+</div>
+<div id="step-6-clean-incomplete-trips" class="section level1">
+<h1>Step 6: Clean Incomplete Trips</h1>
+<p>AVL or GTFS-rt data is rarely transmitted perfectly. Often, there may
+be large gaps of missing data in the middle of trips, or you may have
+only a few observations from each trip. For <strong>Step 6</strong>, the
+function <code>clean_incomplete_trips()</code> filters out these trips
+There are two main groups of decision variables for this function:</p>
+<ul>
+<li><p>Minimum and maximum trip distances and durations.</p></li>
+<li><p>Minimum and maximum distance and time gaps between adjacent
+observations.</p></li>
+</ul>
+<p>For this example, we’ll use a minimum trip distance of 1000 meters,
+and a minimum trip duration of 120 seconds. Anything will less data than
+this will be filtered out. Additionally, we’ll remove trips with a gap
+larger than 1000 meters.</p>
+<div id="running-the-code-4" class="section level2">
+<h2>Running the Code</h2>
+<p>Let’s run <code>clean_incomplete_trips()</code> as discussed
+above:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" tabindex="-1"></a><span class="co"># Set parameters</span></span>
+<span id="cb24-2"><a href="#cb24-2" tabindex="-1"></a>lineE_min_dist <span class="ot">&lt;-</span> <span class="dv">1000</span> <span class="co"># meters</span></span>
+<span id="cb24-3"><a href="#cb24-3" tabindex="-1"></a>lineE_min_time <span class="ot">&lt;-</span> <span class="dv">120</span> <span class="co"># seconds</span></span>
+<span id="cb24-4"><a href="#cb24-4" tabindex="-1"></a>lineE_max_gap <span class="ot">&lt;-</span> <span class="dv">1000</span> <span class="co"># meters</span></span>
+<span id="cb24-5"><a href="#cb24-5" tabindex="-1"></a></span>
+<span id="cb24-6"><a href="#cb24-6" tabindex="-1"></a><span class="co"># Run function</span></span>
+<span id="cb24-7"><a href="#cb24-7" tabindex="-1"></a>lineE_cleaned_incompletes <span class="ot">&lt;-</span> <span class="fu">clean_incomplete_trips</span>(</span>
+<span id="cb24-8"><a href="#cb24-8" tabindex="-1"></a>  <span class="at">distance_df =</span> lineE_trimmed,</span>
+<span id="cb24-9"><a href="#cb24-9" tabindex="-1"></a>  <span class="at">min_trip_distance =</span> lineE_min_dist,</span>
+<span id="cb24-10"><a href="#cb24-10" tabindex="-1"></a>  <span class="at">min_trip_duration =</span> lineE_min_time,</span>
+<span id="cb24-11"><a href="#cb24-11" tabindex="-1"></a>  <span class="at">max_distance_gap =</span> lineE_max_gap</span>
+<span id="cb24-12"><a href="#cb24-12" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="exploring-the-results-4" class="section level2">
+<h2>Exploring the Results</h2>
+<p>Now that we’ve filtered our dataset, let’s see how many trips have
+been removed:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" tabindex="-1"></a>step6_obs <span class="ot">&lt;-</span> <span class="fu">dim</span>(lineE_cleaned_incompletes)[<span class="dv">1</span>]</span>
+<span id="cb25-2"><a href="#cb25-2" tabindex="-1"></a>step6_trips <span class="ot">&lt;-</span> <span class="fu">length</span>(<span class="fu">unique</span>(lineE_cleaned_incompletes<span class="sc">$</span>trip_id_performed))</span>
+<span id="cb25-3"><a href="#cb25-3" tabindex="-1"></a>step5_trips <span class="ot">&lt;-</span> <span class="fu">length</span>(<span class="fu">unique</span>(lineE_trimmed<span class="sc">$</span>trip_id_performed))</span>
+<span id="cb25-4"><a href="#cb25-4" tabindex="-1"></a></span>
+<span id="cb25-5"><a href="#cb25-5" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Initial: &quot;</span>, step5_obs, <span class="st">&quot; obs, &quot;</span>, step5_trips, <span class="st">&quot; trips&quot;</span>,</span>
+<span id="cb25-6"><a href="#cb25-6" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">After: &quot;</span>, step6_obs, <span class="st">&quot; obs, &quot;</span>, step6_trips, <span class="st">&quot; trips&quot;</span>,</span>
+<span id="cb25-7"><a href="#cb25-7" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">Difference: &quot;</span>, (step5_obs <span class="sc">-</span> step6_obs), <span class="st">&quot; obs, &quot;</span>,</span>
+<span id="cb25-8"><a href="#cb25-8" tabindex="-1"></a>    (step5_trips <span class="sc">-</span> step6_trips), <span class="st">&quot; trips removed&quot;</span>,</span>
+<span id="cb25-9"><a href="#cb25-9" tabindex="-1"></a>    <span class="at">sep =</span> <span class="st">&quot;&quot;</span>)</span>
+<span id="cb25-10"><a href="#cb25-10" tabindex="-1"></a><span class="co">#&gt; Initial: 2924 obs, 15 trips</span></span>
+<span id="cb25-11"><a href="#cb25-11" tabindex="-1"></a><span class="co">#&gt; After: 2130 obs, 11 trips</span></span>
+<span id="cb25-12"><a href="#cb25-12" tabindex="-1"></a><span class="co">#&gt; Difference: 794 obs, 4 trips removed</span></span></code></pre></div>
+<p>4 trips violated our requirements, corresponding to roughly 830
+individual observations. As before, we can use
+<code>return_removals</code> to take a look at the violating trips:</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" tabindex="-1"></a>lineE_step6_removals <span class="ot">&lt;-</span> <span class="fu">clean_incomplete_trips</span>(</span>
+<span id="cb26-2"><a href="#cb26-2" tabindex="-1"></a>  <span class="co"># Same settings as before</span></span>
+<span id="cb26-3"><a href="#cb26-3" tabindex="-1"></a>  <span class="at">distance_df =</span> lineE_trimmed,</span>
+<span id="cb26-4"><a href="#cb26-4" tabindex="-1"></a>  <span class="at">min_trip_distance =</span> lineE_min_dist, <span class="at">min_trip_duration =</span> lineE_min_time,</span>
+<span id="cb26-5"><a href="#cb26-5" tabindex="-1"></a>  <span class="at">max_distance_gap =</span> lineE_max_gap,</span>
+<span id="cb26-6"><a href="#cb26-6" tabindex="-1"></a>  <span class="co"># Return removals</span></span>
+<span id="cb26-7"><a href="#cb26-7" tabindex="-1"></a>  <span class="at">return_removals =</span> <span class="cn">TRUE</span></span>
+<span id="cb26-8"><a href="#cb26-8" tabindex="-1"></a>)</span>
+<span id="cb26-9"><a href="#cb26-9" tabindex="-1"></a><span class="fu">print</span>(lineE_step6_removals)</span>
+<span id="cb26-10"><a href="#cb26-10" tabindex="-1"></a><span class="co">#&gt; # A tibble: 4 × 16</span></span>
+<span id="cb26-11"><a href="#cb26-11" tabindex="-1"></a><span class="co">#&gt;   trip_id_performed max_dist min_dist max_time            min_time           </span></span>
+<span id="cb26-12"><a href="#cb26-12" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;                &lt;dbl&gt;    &lt;dbl&gt; &lt;dttm&gt;              &lt;dttm&gt;             </span></span>
+<span id="cb26-13"><a href="#cb26-13" tabindex="-1"></a><span class="co">#&gt; 1 63383935            34944.    18.3  2026-05-27 07:52:59 2026-05-27 06:46:37</span></span>
+<span id="cb26-14"><a href="#cb26-14" tabindex="-1"></a><span class="co">#&gt; 2 63383948            35219.    30.7  2026-05-27 08:37:39 2026-05-27 07:10:41</span></span>
+<span id="cb26-15"><a href="#cb26-15" tabindex="-1"></a><span class="co">#&gt; 3 63384081            35195.    28.6  2026-05-27 08:39:55 2026-05-27 07:22:59</span></span>
+<span id="cb26-16"><a href="#cb26-16" tabindex="-1"></a><span class="co">#&gt; 4 63384103            35130.     4.34 2026-05-27 08:25:54 2026-05-27 07:06:17</span></span>
+<span id="cb26-17"><a href="#cb26-17" tabindex="-1"></a><span class="co">#&gt; # ℹ 11 more variables: max_dist_gap &lt;dbl&gt;, max_t_gap &lt;dbl&gt;,</span></span>
+<span id="cb26-18"><a href="#cb26-18" tabindex="-1"></a><span class="co">#&gt; #   max_dist_gap_id &lt;chr&gt;, max_t_gap_id &lt;chr&gt;, trip_distance &lt;dbl&gt;,</span></span>
+<span id="cb26-19"><a href="#cb26-19" tabindex="-1"></a><span class="co">#&gt; #   duration &lt;dbl&gt;, dist_ok &lt;lgl&gt;, dur_ok &lt;lgl&gt;, dist_gap_ok &lt;lgl&gt;,</span></span>
+<span id="cb26-20"><a href="#cb26-20" tabindex="-1"></a><span class="co">#&gt; #   t_gap_ok &lt;lgl&gt;, all_ok &lt;lgl&gt;</span></span></code></pre></div>
+<p>All of these were removed because of a large gap in data. Let’s take
+a look at one, trip 63383948:</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" tabindex="-1"></a><span class="co"># Filter dataframe to our tirp &amp; distances</span></span>
+<span id="cb27-2"><a href="#cb27-2" tabindex="-1"></a>plot_df <span class="ot">&lt;-</span> lineE_trimmed <span class="sc">%&gt;%</span></span>
+<span id="cb27-3"><a href="#cb27-3" tabindex="-1"></a>  <span class="fu">filter</span>(trip_id_performed <span class="sc">==</span> <span class="st">&quot;63383948&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb27-4"><a href="#cb27-4" tabindex="-1"></a>  <span class="fu">filter</span>((distance <span class="sc">&gt;=</span> <span class="dv">4000</span>) <span class="sc">&amp;</span> (distance <span class="sc">&lt;=</span> <span class="dv">16000</span>))</span>
+<span id="cb27-5"><a href="#cb27-5" tabindex="-1"></a></span>
+<span id="cb27-6"><a href="#cb27-6" tabindex="-1"></a><span class="co"># Create a plot</span></span>
+<span id="cb27-7"><a href="#cb27-7" tabindex="-1"></a>gaps_plot <span class="ot">&lt;-</span> <span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb27-8"><a href="#cb27-8" tabindex="-1"></a>  <span class="co"># Plot the points</span></span>
+<span id="cb27-9"><a href="#cb27-9" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">data =</span> plot_df,</span>
+<span id="cb27-10"><a href="#cb27-10" tabindex="-1"></a>            <span class="fu">aes</span>(<span class="at">x =</span> event_timestamp, <span class="at">y =</span> distance),</span>
+<span id="cb27-11"><a href="#cb27-11" tabindex="-1"></a>            <span class="at">linewidth =</span> <span class="dv">2</span>, <span class="at">color =</span> <span class="st">&quot;lightcoral&quot;</span>) <span class="sc">+</span></span>
+<span id="cb27-12"><a href="#cb27-12" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> plot_df,</span>
+<span id="cb27-13"><a href="#cb27-13" tabindex="-1"></a>             <span class="fu">aes</span>(<span class="at">x =</span> event_timestamp, <span class="at">y =</span> distance),</span>
+<span id="cb27-14"><a href="#cb27-14" tabindex="-1"></a>             <span class="at">size =</span> <span class="dv">2</span>, <span class="at">color =</span> <span class="st">&quot;firebrick4&quot;</span>) <span class="sc">+</span></span>
+<span id="cb27-15"><a href="#cb27-15" tabindex="-1"></a>  <span class="co"># Format the plot</span></span>
+<span id="cb27-16"><a href="#cb27-16" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb27-17"><a href="#cb27-17" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Time&quot;</span>,</span>
+<span id="cb27-18"><a href="#cb27-18" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">&quot;Distance (m)&quot;</span>,</span>
+<span id="cb27-19"><a href="#cb27-19" tabindex="-1"></a>       <span class="at">title =</span> <span class="st">&quot;Gap on Line E&quot;</span>,</span>
+<span id="cb27-20"><a href="#cb27-20" tabindex="-1"></a>       <span class="at">subtitle =</span> <span class="st">&quot;Trip 63383948&quot;</span>)</span>
+<span id="cb27-21"><a href="#cb27-21" tabindex="-1"></a>gaps_plot</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" /><!-- --></p>
+<p>We can see this trip’s gap between 8,000 and 12,000 meters. The slope
+of this line is reasonable, but is may not be reasonable to interpolate
+between these points, especially if we’re concerned about understanding
+individual stop-and-go cycles. We’ll leave this – and similar trips –
+out of our future analyses.</p>
+</div>
+</div>
+<div id="step-7-correct-for-monotonicity" class="section level1">
+<h1>Step 7: Correct for Monotonicity</h1>
+<p>While GPS noise can result in the large jumps we saw previously, it
+much more often causes small deviations in observed locations. This
+creates problems when fitting an interpolating trajectory curve, because
+if any points drift backwards, the curve will be neither monotonic nor
+invertible. In <strong>Step 7</strong> (the last one!), we will “pull”
+any backtracking points up to where they should be. Optionally, data can
+also be made <em>strictly</em> monotonic.</p>
+<p>The function <code>make_monotonic()</code> has two decision
+variables:</p>
+<ul>
+<li><p>Should speeds be corrected to satisfy monotonicity? AVL speed
+location can help fit an excellent interpolating curve, but the values
+of observed speeds must meet certain conditions (known as <a href="https://doi.org/10.1137/0717021">Fritsch-Carlson constraints</a>)
+in order to produce a monotonic spline. If your AVL data has speed
+information, and you plan to use it when fitting a spline (the
+recommended interpolation method), set <code>correct_speed = TRUE</code>
+to guarantee the fit is monotonic.</p></li>
+<li><p>Should the trajectory be made <em>strictly</em> monotonic? This
+will identify perfectly flat regions can give them a slight upward
+slope. To be invertible, a trajectory must be strictly increasing, and
+never constant.</p></li>
+</ul>
+<p>Our AVL dataset does have speeds, and we do want an invertible and
+monotonic final trajectory. As such, we’ll correct the speeds to meet
+the Fritsch-Carlson constraints, and we will add a distance error of
+0.001 meters (1 mm). More information is available at
+<code>help(make_monotonic)</code>.</p>
+<div id="running-the-code-5" class="section level2">
+<h2>Running the Code</h2>
+<p>Let’s run <code>make_monotonic()</code> using the parameters
+discussed above:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" tabindex="-1"></a><span class="co"># Set parameters</span></span>
+<span id="cb28-2"><a href="#cb28-2" tabindex="-1"></a>lineE_dist_error <span class="ot">&lt;-</span> <span class="fl">0.001</span></span>
+<span id="cb28-3"><a href="#cb28-3" tabindex="-1"></a>lineE_correct_speeds <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
+<span id="cb28-4"><a href="#cb28-4" tabindex="-1"></a></span>
+<span id="cb28-5"><a href="#cb28-5" tabindex="-1"></a><span class="co"># Run function</span></span>
+<span id="cb28-6"><a href="#cb28-6" tabindex="-1"></a>lineE_mono <span class="ot">&lt;-</span> <span class="fu">make_monotonic</span>(<span class="at">distance_df =</span> lineE_cleaned_incompletes,</span>
+<span id="cb28-7"><a href="#cb28-7" tabindex="-1"></a>                             <span class="at">correct_speed =</span> lineE_correct_speeds,</span>
+<span id="cb28-8"><a href="#cb28-8" tabindex="-1"></a>                             <span class="at">add_distance_error =</span> lineE_dist_error)</span></code></pre></div>
+</div>
+<div id="exploring-the-results-5" class="section level2">
+<h2>Exploring the Results</h2>
+<p>This function modifies existing data, but does not remove any points.
+The total number of observations should stay the same:</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" tabindex="-1"></a><span class="co"># Pull dimensions</span></span>
+<span id="cb29-2"><a href="#cb29-2" tabindex="-1"></a>step7_obs <span class="ot">&lt;-</span> <span class="fu">dim</span>(lineE_mono)[<span class="dv">1</span>]</span>
+<span id="cb29-3"><a href="#cb29-3" tabindex="-1"></a></span>
+<span id="cb29-4"><a href="#cb29-4" tabindex="-1"></a><span class="co"># Print</span></span>
+<span id="cb29-5"><a href="#cb29-5" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Initial: &quot;</span>, step6_obs, <span class="st">&quot; obs&quot;</span>,</span>
+<span id="cb29-6"><a href="#cb29-6" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">After: &quot;</span>, step7_obs, <span class="st">&quot; obs&quot;</span>,</span>
+<span id="cb29-7"><a href="#cb29-7" tabindex="-1"></a>    <span class="st">&quot;</span><span class="sc">\n</span><span class="st">Difference: &quot;</span>, (step6_obs <span class="sc">-</span> step7_obs), <span class="st">&quot; obs removed&quot;</span>)</span>
+<span id="cb29-8"><a href="#cb29-8" tabindex="-1"></a><span class="co">#&gt; Initial:  2130  obs </span></span>
+<span id="cb29-9"><a href="#cb29-9" tabindex="-1"></a><span class="co">#&gt; After:  2130  obs </span></span>
+<span id="cb29-10"><a href="#cb29-10" tabindex="-1"></a><span class="co">#&gt; Difference:  0  obs removed</span></span></code></pre></div>
+<p>As we would expect, no points have been removed. We can check,
+though, if our dataset is now monotonic using
+<code>validate_monotonicity()</code>. We’ll ask the function to validate
+speeds as well:</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" tabindex="-1"></a><span class="co"># Trimmed DF</span></span>
+<span id="cb30-2"><a href="#cb30-2" tabindex="-1"></a>step6_val <span class="ot">&lt;-</span> <span class="fu">validate_monotonicity</span>(<span class="at">distance_df =</span> lineE_trimmed,</span>
+<span id="cb30-3"><a href="#cb30-3" tabindex="-1"></a>                                   <span class="at">check_speed =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb30-4"><a href="#cb30-4" tabindex="-1"></a><span class="fu">print</span>(step6_val)</span>
+<span id="cb30-5"><a href="#cb30-5" tabindex="-1"></a><span class="co">#&gt;   weak strict  speed </span></span>
+<span id="cb30-6"><a href="#cb30-6" tabindex="-1"></a><span class="co">#&gt;  FALSE  FALSE  FALSE</span></span>
+<span id="cb30-7"><a href="#cb30-7" tabindex="-1"></a></span>
+<span id="cb30-8"><a href="#cb30-8" tabindex="-1"></a><span class="co"># Monotonic-corrected DF</span></span>
+<span id="cb30-9"><a href="#cb30-9" tabindex="-1"></a>step7_val <span class="ot">&lt;-</span> <span class="fu">validate_monotonicity</span>(<span class="at">distance_df =</span> lineE_mono,</span>
+<span id="cb30-10"><a href="#cb30-10" tabindex="-1"></a>                                   <span class="at">check_speed =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb30-11"><a href="#cb30-11" tabindex="-1"></a><span class="fu">print</span>(step7_val)</span>
+<span id="cb30-12"><a href="#cb30-12" tabindex="-1"></a><span class="co">#&gt;   weak strict  speed </span></span>
+<span id="cb30-13"><a href="#cb30-13" tabindex="-1"></a><span class="co">#&gt;   TRUE   TRUE   TRUE</span></span></code></pre></div>
+<p>We can see the trimmed dataset did not satisfy weak, strict, or
+Fristch-Carlson speed conditions for monotonicity, but the corrected
+dataset did. We can also see exactly which points were adjusted, and by
+how much, using the parameter <code>return_changes</code>.</p>
+<p>Below we plot an example trip, 63383915, around one stop it
+makes:</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" tabindex="-1"></a><span class="co"># Set filter parameters</span></span>
+<span id="cb31-2"><a href="#cb31-2" tabindex="-1"></a>plot_trip <span class="ot">&lt;-</span> <span class="st">&quot;63383915&quot;</span></span>
+<span id="cb31-3"><a href="#cb31-3" tabindex="-1"></a>plot_dists <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">18300</span>, <span class="dv">19300</span>)</span>
+<span id="cb31-4"><a href="#cb31-4" tabindex="-1"></a><span class="co"># Get old DF</span></span>
+<span id="cb31-5"><a href="#cb31-5" tabindex="-1"></a>plot_df_before <span class="ot">&lt;-</span> lineE_trimmed <span class="sc">%&gt;%</span></span>
+<span id="cb31-6"><a href="#cb31-6" tabindex="-1"></a>  <span class="fu">filter</span>(trip_id_performed <span class="sc">==</span> plot_trip) <span class="sc">%&gt;%</span></span>
+<span id="cb31-7"><a href="#cb31-7" tabindex="-1"></a>  <span class="fu">filter</span>((distance <span class="sc">&gt;=</span> plot_dists[<span class="dv">1</span>]) <span class="sc">&amp;</span> (distance <span class="sc">&lt;=</span> plot_dists[<span class="dv">2</span>])) <span class="sc">%&gt;%</span></span>
+<span id="cb31-8"><a href="#cb31-8" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">speed_label =</span> <span class="fu">paste</span>(<span class="fu">round</span>(speed, <span class="dv">1</span>), <span class="st">&quot; m/s&quot;</span>, <span class="at">sep =</span> <span class="st">&quot;&quot;</span>))</span>
+<span id="cb31-9"><a href="#cb31-9" tabindex="-1"></a><span class="co"># Get corrected DF</span></span>
+<span id="cb31-10"><a href="#cb31-10" tabindex="-1"></a>plot_df_after <span class="ot">&lt;-</span> lineE_mono <span class="sc">%&gt;%</span></span>
+<span id="cb31-11"><a href="#cb31-11" tabindex="-1"></a>  <span class="fu">filter</span>(trip_id_performed <span class="sc">==</span> plot_trip) <span class="sc">%&gt;%</span></span>
+<span id="cb31-12"><a href="#cb31-12" tabindex="-1"></a>  <span class="fu">filter</span>((distance <span class="sc">&gt;=</span> plot_dists[<span class="dv">1</span>]) <span class="sc">&amp;</span> (distance <span class="sc">&lt;=</span> plot_dists[<span class="dv">2</span>])) <span class="sc">%&gt;%</span></span>
+<span id="cb31-13"><a href="#cb31-13" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">speed_label =</span> <span class="fu">paste</span>(<span class="fu">round</span>(speed, <span class="dv">1</span>), <span class="st">&quot; m/s&quot;</span>, <span class="at">sep =</span> <span class="st">&quot;&quot;</span>))</span>
+<span id="cb31-14"><a href="#cb31-14" tabindex="-1"></a></span>
+<span id="cb31-15"><a href="#cb31-15" tabindex="-1"></a><span class="co"># Plot</span></span>
+<span id="cb31-16"><a href="#cb31-16" tabindex="-1"></a>mono_plot <span class="ot">&lt;-</span> <span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb31-17"><a href="#cb31-17" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> plot_df_before,</span>
+<span id="cb31-18"><a href="#cb31-18" tabindex="-1"></a>             <span class="fu">aes</span>(<span class="at">x =</span> event_timestamp, <span class="at">y =</span> distance,</span>
+<span id="cb31-19"><a href="#cb31-19" tabindex="-1"></a>                 <span class="at">color =</span> <span class="st">&quot;Uncorrected&quot;</span>),</span>
+<span id="cb31-20"><a href="#cb31-20" tabindex="-1"></a>             <span class="at">size =</span> <span class="dv">4</span>, <span class="at">alpha =</span> <span class="fl">0.6</span>) <span class="sc">+</span></span>
+<span id="cb31-21"><a href="#cb31-21" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> plot_df_after,</span>
+<span id="cb31-22"><a href="#cb31-22" tabindex="-1"></a>             <span class="fu">aes</span>(<span class="at">x =</span> event_timestamp, <span class="at">y =</span> distance,</span>
+<span id="cb31-23"><a href="#cb31-23" tabindex="-1"></a>                 <span class="at">color =</span> <span class="st">&quot;Corrected&quot;</span>),</span>
+<span id="cb31-24"><a href="#cb31-24" tabindex="-1"></a>             <span class="at">size =</span> <span class="dv">3</span>, <span class="at">alpha =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb31-25"><a href="#cb31-25" tabindex="-1"></a>  <span class="fu">geom_label</span>(<span class="at">data =</span> plot_df_before,</span>
+<span id="cb31-26"><a href="#cb31-26" tabindex="-1"></a>             <span class="fu">aes</span>(<span class="at">x =</span> event_timestamp, <span class="at">y =</span> distance,</span>
+<span id="cb31-27"><a href="#cb31-27" tabindex="-1"></a>                 <span class="at">color =</span> <span class="st">&quot;Uncorrected&quot;</span>, <span class="at">label =</span> speed_label),</span>
+<span id="cb31-28"><a href="#cb31-28" tabindex="-1"></a>            <span class="at">nudge_y =</span> <span class="sc">-</span><span class="dv">50</span>, <span class="at">size =</span> <span class="fl">2.5</span>, <span class="at">show.legend =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
+<span id="cb31-29"><a href="#cb31-29" tabindex="-1"></a>  <span class="fu">geom_label</span>(<span class="at">data =</span> plot_df_after,</span>
+<span id="cb31-30"><a href="#cb31-30" tabindex="-1"></a>             <span class="fu">aes</span>(<span class="at">x =</span> event_timestamp, <span class="at">y =</span> distance,</span>
+<span id="cb31-31"><a href="#cb31-31" tabindex="-1"></a>                 <span class="at">color =</span> <span class="st">&quot;Corrected&quot;</span>, <span class="at">label =</span> speed_label),</span>
+<span id="cb31-32"><a href="#cb31-32" tabindex="-1"></a>            <span class="at">nudge_y =</span> <span class="dv">50</span>, <span class="at">size =</span> <span class="fl">2.5</span>, <span class="at">show.legend =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
+<span id="cb31-33"><a href="#cb31-33" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">name =</span> <span class="st">&quot;Correction&quot;</span>,</span>
+<span id="cb31-34"><a href="#cb31-34" tabindex="-1"></a>                     <span class="at">values=</span>  <span class="fu">c</span>(<span class="st">&quot;Uncorrected&quot;</span> <span class="ot">=</span> <span class="st">&quot;#f43155&quot;</span>,</span>
+<span id="cb31-35"><a href="#cb31-35" tabindex="-1"></a>                                <span class="st">&quot;Corrected&quot;</span> <span class="ot">=</span> <span class="st">&quot;#2f6ff8&quot;</span>)) <span class="sc">+</span></span>
+<span id="cb31-36"><a href="#cb31-36" tabindex="-1"></a>  <span class="co"># Format the plot</span></span>
+<span id="cb31-37"><a href="#cb31-37" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb31-38"><a href="#cb31-38" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Time&quot;</span>,</span>
+<span id="cb31-39"><a href="#cb31-39" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">&quot;Distance (m)&quot;</span>,</span>
+<span id="cb31-40"><a href="#cb31-40" tabindex="-1"></a>       <span class="at">title =</span> <span class="st">&quot;Monotonic Correction on Line E&quot;</span>,</span>
+<span id="cb31-41"><a href="#cb31-41" tabindex="-1"></a>       <span class="at">subtitle =</span> <span class="fu">paste</span>(<span class="st">&quot;Trip &quot;</span>, plot_trip, <span class="at">sep =</span> <span class="st">&quot;&quot;</span>))</span>
+<span id="cb31-42"><a href="#cb31-42" tabindex="-1"></a>mono_plot</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" /><!-- --></p>
+<p>In this trip, the GPS backtracks slightly while the train is supposed
+to be stopped. The speeds also needed slight adjustments around the
+acceleration curve to guarantee a monotonic spline.
+<code>make_monotonic()</code> identified and corrected both issues.</p>
+</div>
+</div>
+<div id="conclusion" class="section level1">
+<h1>Conclusion</h1>
+<p>That was a lot of cleaning! But we now have a dataset free of
+outliers and deadheading trips, and that we know will produce a
+monotonic and invertible trajectory function. In the next vignette
+(<code>vignette(&quot;intro-trajectories&quot;)</code>) we will fit and explore
+these interpolating curves.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
